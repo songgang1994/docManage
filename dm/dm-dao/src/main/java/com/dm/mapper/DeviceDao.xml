@@ -1,0 +1,390 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+    PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+    "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.dm.dao.DeviceDao">
+
+	<!-- 计算搜索设备总条数 -->
+	<select id="count" resultType="int">
+		SELECT COUNT(*)
+		FROM
+			M_DEVICE_INFO
+		WHERE
+			DEVICE_NO   	LIKE #{deviceNo}
+		AND DEVICE_NAME 	LIKE #{deviceName}
+		AND LOCATION_ID		LIKE #{deviceLocation}
+	</select>
+
+	<!-- 或当当前页设备列表 -->
+	<select id="listByPage" resultType="DeviceInfoDto">
+	  SELECT *
+	    FROM
+	    (
+		SELECT
+				 ROW_NUMBER() OVER (ORDER BY tb.DEVICE_NO ASC) AS row,
+				tb.DEVICE_NO,tb.DEVICE_NAME,tb.state,p.DISP_NAME AS location
+		FROM
+			(
+				SELECT
+						d.DEVICE_NO,
+						d.DEVICE_NAME,
+						d.LOCATION_ID,
+						p.DISP_NAME AS state
+				FROM
+						M_DEVICE_INFO d
+				LEFT JOIN PARM_MST p ON d.DEVICE_STATUS = p.[VALUE]
+				AND p.TYPE1 = 'DEVICE_STATUS'
+			) AS tb
+		LEFT JOIN PARM_MST p ON tb.LOCATION_ID = p.[VALUE]
+		AND p.TYPE1 = 'LOCATION'
+		WHERE
+				tb.DEVICE_NO LIKE  #{deviceNo}
+		AND
+				tb.DEVICE_NAME LIKE #{deviceName}
+		AND
+				tb.LOCATION_ID   LIKE #{deviceLocation}
+		) a
+		WHERE
+			row > #{start}
+		AND row <![CDATA[<=]]> #{start} + #{length}
+	</select>
+
+	<!-- 预约设备数 -->
+	<select id="countReserve" resultType="int">
+		SELECT COUNT(*)
+		FROM
+			T_DEVICE_RESERVE_INFO
+		WHERE
+			DEVICE_NO = #{deviceNo}
+	</select>
+
+	<!-- 设备使用数 -->
+	<select id="countUse" resultType="int">
+		SELECT COUNT(*)
+		FROM
+			T_DEVICE_USE_INFO
+		WHERE
+			DEVICE_NO = #{deviceNo}
+	</select>
+
+	<!-- 删除设备 -->
+	<delete id="delete">
+		DELETE
+		FROM
+			M_DEVICE_INFO
+		WHERE
+			DEVICE_NO = #{deviceNo}
+	</delete>
+
+
+	<!-- 查询设备编号是否存在 -->
+	<select id="searchNumber" resultType="DeviceInfoEntity">
+	       SELECT
+	                *
+	       FROM
+	               M_DEVICE_INFO
+	       WHERE
+	               DEVICE_NO =#{deviceNo}
+    </select>
+
+    <!-- 添加设备信息 -->
+    <insert id="addDevice"  parameterType="DeviceInfoEntity">
+           INSERT
+           		INTO
+           M_DEVICE_INFO
+           		(DEVICE_NO,DEVICE_NAME,DEVICE_PARM,DEVICE_STATUS,LOCATION_ID,COMMENT_INFO,CREATOR,CREATE_DT)
+		    VALUES
+		    	(#{device.deviceNo},#{device.deviceName},#{device.deviceParm},#{device.deviceStatus},#{device.locationId},#{device.commentInfo},#{userId},getdate())
+    </insert>
+
+    <!-- 通过设备编号查询设备信息 -->
+    <select id="editorDevice" resultType="DeviceInfoEntity">
+          SELECT
+	                *
+	       FROM
+	               M_DEVICE_INFO
+	       WHERE
+	               DEVICE_NO =#{deviceNo}
+    </select>
+
+    <!-- 通过设备编号修改设备信息 -->
+    <update id="updateDevice" >
+           UPDATE
+           		M_DEVICE_INFO
+           SET
+           		DEVICE_NAME=#{device.deviceName},DEVICE_PARM=#{device.deviceParm},DEVICE_STATUS=#{device.deviceStatus},LOCATION_ID=#{device.locationId},COMMENT_INFO=#{device.commentInfo},UPDATER=#{userId},UPDATE_DT=getdate()
+		   WHERE
+		   		DEVICE_NO=#{device.deviceNo}
+    </update>
+
+    <!-- 设备使用一览查询数据 -->
+    <select id="getUseList" resultType="DeviceInfoDto">
+    		SELECT
+    				*
+    		FROM
+    			(
+    			SELECT
+						ROW_NUMBER() OVER (ORDER BY D.DEVICE_NO ASC) AS row,
+						U.USE_NO,D.DEVICE_NO,D.DEVICE_NAME,U.START_DT,U.END_DT,S.USER_NAME
+				FROM
+						M_DEVICE_INFO D
+				INNER JOIN
+						T_DEVICE_USE_INFO U ON U.DEVICE_NO = D.DEVICE_NO
+				INNER JOIN
+						SYS_USER S ON S.USER_ID = U.USER_ID
+				WHERE D.DEVICE_NO != '-1'
+				<if test="device.deviceNo!=null and device.deviceNo !=''">
+					AND D.DEVICE_NO LIKE '%${device.deviceNo}%'
+				</if>
+				<if test="device.deviceName!=null and device.deviceName !=''">
+					AND D.DEVICE_NAME LIKE '%${device.deviceName}%'
+				</if>
+				<if test="device.locationId!=null and device.locationId!=''">
+					AND D.LOCATION_ID = #{device.locationId}
+				</if>
+				<if test="device.useTime!=null and device.useTime!=''">
+					AND  #{device.useTime} <![CDATA[>=]]> U.START_DT
+					AND  #{device.useTime} <![CDATA[<=]]> U.END_DT
+				</if>
+    			) a
+    		WHERE
+ 					row > #{start}
+			AND row <![CDATA[<=]]> #{start} + #{length}
+    </select>
+
+   <!--  设备使用一览总条数 -->
+	<select id="getUseTatal" resultType="int">
+			SELECT
+    				COUNT(USE_NO)
+    		FROM
+    			(
+    			SELECT
+						U.USE_NO,D.DEVICE_NO,D.DEVICE_NAME,U.START_DT,U.END_DT,S.USER_NAME
+				FROM
+						M_DEVICE_INFO D
+				INNER JOIN
+						T_DEVICE_USE_INFO U ON U.DEVICE_NO = D.DEVICE_NO
+				INNER JOIN
+						SYS_USER S ON S.USER_ID = U.USER_ID
+				WHERE D.DEVICE_NO != '-1'
+				<if test="device.deviceNo!=null and device.deviceNo !=''">
+					AND D.DEVICE_NO LIKE '%${device.deviceNo}%'
+				</if>
+				<if test="device.deviceName!=null and device.deviceName !=''">
+					AND D.DEVICE_NAME LIKE '%${device.deviceName}%'
+				</if>
+				<if test="device.locationId!=null and device.locationId!=''">
+					AND D.LOCATION_ID = #{device.locationId}
+				</if>
+				<if test="device.useTime!=null and device.useTime!=''">
+					AND  #{device.useTime} <![CDATA[>=]]> U.START_DT
+					AND  #{device.useTime} <![CDATA[<=]]> U.END_DT
+				</if>
+    			) a
+	</select>
+    <!-- 查询设备信息中的设备状态 -->
+    <select id="getstate"  resultType="ParmMstEntity">
+         SELECT
+         		*
+         FROM
+         		PARM_MST
+         WHERE
+         		TYPE1='DEVICE_STATUS'
+    </select>
+
+    <!-- 查询设备信息中的位置 -->
+    <select id="getplace" resultType="ParmMstEntity">
+          SELECT
+         		*
+         FROM
+         		PARM_MST
+         WHERE
+         		TYPE1='LOCATION'
+    </select>
+
+
+ 	<!-- 设备预约信息 期间查重 -->
+	<select id="periodCheck" resultType="Integer">
+		SELECT
+			COUNT(RESERVE_NO)
+		FROM
+			T_DEVICE_RESERVE_INFO
+		WHERE
+			DEVICE_NO = #{deviceNo}
+		AND
+			((#{startDt} <![CDATA[>=]]> START_DT AND #{startDt} <![CDATA[<=]]> END_DT)
+			OR (#{endDt} <![CDATA[>=]]> START_DT AND #{endDt} <![CDATA[<=]]> END_DT)
+			OR (#{endDt} <![CDATA[>=]]> END_DT AND #{startDt} <![CDATA[<=]]> START_DT))
+		<if test="pattern == 2">
+			AND
+				RESERVE_NO != #{reserveNo}
+		</if>
+    </select>
+
+    <!-- 获取插入的最后一条预约信息的reserveNo -->
+	<select id="getLastReserveNo" resultType="BigDecimal">
+		SELECT
+        	MAX(RESERVE_NO)
+        FROM
+        	T_DEVICE_RESERVE_INFO
+    </select>
+
+  	<!-- 新建设备预约信息 -->
+    <insert id="addReserve"  parameterType="DeviceReserveInfoDto">
+	    INSERT INTO
+			T_DEVICE_RESERVE_INFO
+     		(RESERVE_NO, DEVICE_NO, START_DT, END_DT, TITLE,
+             USER_ID, USE_GOAL, COLOR, CREATOR, CREATE_DT)
+        VALUES
+        	(#{reserveNo}, #{deviceNo,jdbcType=VARCHAR}, #{startDt}, #{endDt}, #{title},
+             #{userId}, #{useGoal}, #{color}, #{userId}, GetDate())
+    </insert>
+
+    <!-- 更新设备预约 -->
+    <update id="updateReserve" parameterType="DeviceReserveInfoDto">
+    	UPDATE
+        	T_DEVICE_RESERVE_INFO
+        SET
+        	START_DT = #{startDt}, END_DT = #{endDt}, TITLE = #{title},
+        	USE_GOAL = #{useGoal}, COLOR = #{color},
+        	UPDATER = #{userId}, UPDATE_DT = GetDate()
+		WHERE
+			RESERVE_NO = #{reserveNo}
+		AND
+			DEVICE_NO = #{deviceNo}
+    </update>
+
+	<!-- 删除设备预约 -->
+	<delete id="deleteReserve" parameterType="DeviceReserveInfoDto">
+        DELETE	FROM
+        	T_DEVICE_RESERVE_INFO
+        WHERE
+			RESERVE_NO =#{reserveNo}
+		AND
+			DEVICE_NO = #{deviceNo}
+    </delete>
+
+    <!-- 获取单条设备预约记录 -->
+  	<select id="getReserve" resultType="DeviceReserveInfoDto">
+		SELECT
+			r.*, d.DEVICE_NAME
+		FROM
+			T_DEVICE_RESERVE_INFO r
+		INNER JOIN
+			M_DEVICE_INFO d
+		ON
+			r.DEVICE_NO = d.DEVICE_NO
+		WHERE
+			r.DEVICE_NO = #{deviceNo}
+		AND
+			r.RESERVE_NO = #{reserveNo}
+  	</select>
+
+  	<!-- 获得月 设备预约记录 -->
+  	<select id="reserveInfo" resultType="DeviceReserveInfoDto">
+		SELECT
+			u.USER_NAME, d.DEVICE_NAME,
+			r.DEVICE_NO, r.RESERVE_NO,
+			r.COLOR, r.START_DT, r.END_DT
+		FROM
+			T_DEVICE_RESERVE_INFO r
+		INNER JOIN
+			SYS_USER u
+		ON
+			r.USER_ID = u.USER_ID
+		INNER JOIN
+			M_DEVICE_INFO d
+		ON
+			r.DEVICE_NO = d.DEVICE_NO
+		WHERE
+			r.DEVICE_NO IN
+			<foreach collection="deviceNos" item="deviceNo" index="index"
+            	open="(" close=")" separator=",">
+             	#{deviceNo}
+        	</foreach>
+		AND
+			((r.START_DT BETWEEN #{startDt} AND #{endDt})
+			OR (r.END_DT BETWEEN #{startDt} AND #{endDt})
+			OR (r.START_DT <![CDATA[<=]]> #{startDt} AND r.END_DT <![CDATA[>=]]> #{endDt}))
+  	</select>
+
+
+	<!-- 查询所有设备 -->
+    <select id="getDevice" resultType="DeviceInfoEntity">
+    	SELECT
+        	*
+        FROM
+        	M_DEVICE_INFO
+    </select>
+
+    <!-- 设备使用工时录入 -->
+    <insert id="addHour"  parameterType="DeviceUseInfoEntity">
+    	INSERT
+        	INTO
+        T_DEVICE_USE_INFO
+        	(USE_NO,DEVICE_NO,START_DT,END_DT,USER_ID,USE_TYPE,COMMENT_INFO,CREATOR,CREATE_DT)
+        VALUES
+        	(#{useNo},#{hour.deviceNo},#{hour.startDt},#{hour.endDt},#{hour.userId},#{hour.useType},#{hour.commentInfo},#{userId},getdate())
+    </insert>
+
+	<!-- 查询数据库最后一条数据 -->
+	<select id="getFinal" resultType="DeviceUseInfoEntity">
+		SELECT TOP 1
+	    	*
+	    FROM
+	    	T_DEVICE_USE_INFO
+	    ORDER BY USE_NO DESC
+	</select>
+
+	<!-- 删除设备信息 -->
+	<delete id="deleteHour" >
+    	DELETE
+        FROM
+        	T_DEVICE_USE_INFO
+        WHERE
+            USE_NO =#{useNo}
+	</delete>
+
+	<!-- 判断期间是否重复 -->
+	<select id="gettime" parameterType="DeviceUseInfoEntity"  resultType="DeviceUseInfoEntity">
+		SELECT
+	    	*
+	    FROM
+	    	T_DEVICE_USE_INFO
+	    WHERE
+	    	DEVICE_NO = #{hour.deviceNo}
+	    AND
+			(#{hour.startDt} &gt;=START_DT AND  #{hour.startDt} &lt;=END_DT
+				OR #{hour.endDt} &gt;=START_DT AND #{hour.endDt} &lt;= END_DT
+				OR #{hour.endDt} &gt;=END_DT  AND #{hour.startDt} &lt;=START_DT
+				)
+	 </select>
+
+     <!-- 修改设备录入信息 -->
+	 <update id="updateHour" parameterType="DeviceUseInfoEntity">
+	 	UPDATE
+	    	T_DEVICE_USE_INFO
+	    SET
+	    	DEVICE_NO = #{hour.deviceNo},START_DT = #{hour.startDt},END_DT = #{hour.endDt},USER_ID=#{hour.userId},COMMENT_INFO = #{hour.commentInfo},UPDATER =#{userId},UPDATE_DT=GETDATE()
+        WHERE
+        	USE_NO = #{hour.useNo}
+        AND
+        	DEVICE_NO = #{hour.deviceNo}
+	 </update>
+
+	<!-- 通过使用编号查询设备信息 -->
+	 <select id="getInfo" resultType="DeviceUseInfoDto">
+	 		SELECT
+	 				DEVICE_NO,START_DT,END_DT,T_DEVICE_USE_INFO.USER_ID,USER_NAME,USE_TYPE,COMMENT_INFO
+	 		FROM
+	 				T_DEVICE_USE_INFO
+			LEFT JOIN
+					SYS_USER
+			ON
+					SYS_USER.USER_ID = T_DEVICE_USE_INFO.USER_ID
+			WHERE
+					USE_NO=#{useNo}
+	 </select>
+
+</mapper>

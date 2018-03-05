@@ -1,0 +1,135 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+    PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+    "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.dm.dao.DepartManageDao">
+	<!-- 获取组织结构目录树数据 -->
+	<select id="getdepartManageTree" resultType="DepartmentInfoEntity">
+		SELECT
+			DEPT_ID,
+			DEPT_NAME,
+			PARENT_DEPT_ID
+		FROM
+			 M_DEPARTMENT_INFO
+	</select>
+	<!-- 根据部门Id获取Count-->
+	<select id="departCount" resultType="int">
+		SELECT
+			  COUNT(DEPT_ID)
+		FROM
+		   	  M_DEPARTMENT_INFO
+		WHERE
+		 	  DEPT_ID = #{deptId}
+	</select>
+	<!--新增部门 -->
+	<insert id = "departAdd"  parameterType="departManageInfoDto">
+		INSERT INTO M_DEPARTMENT_INFO
+		           (DEPT_ID,
+		            DEPT_NAME,
+		            PARENT_DEPT_ID,
+		            CREATOR,
+		            CREATE_DT)
+		VALUES(#{departInfo.deptId},
+			   		#{departInfo.deptName},
+			   		#{departInfo.parentDeptId},
+			   		#{departInfo.creator},
+			   		GETDATE())
+    </insert>
+    <!--新增部门负责人 -->
+    <insert id = "userDeptAdd">
+		INSERT INTO SYS_USER_DEPT
+		           (USER_ID,
+		            DEPT_ID,
+		            LEADER_FLG,
+		            CREATOR,
+		            CREATE_DT)
+		VALUES
+		<foreach collection="userdeptDtos"  item="userdeptDto"  index="idx"  separator="," >
+        			(#{userdeptDto.userId},
+					#{userdeptDto.deptId},
+			   		'1',
+			   		#{userdeptDto.creator},
+			   		GETDATE())
+    	</foreach>
+    </insert>
+    <!-- 获取负责人 -->
+    <select id="userCount" resultType="int">
+		SELECT
+			  COUNT(de.USER_ID)
+		FROM
+		   	  SYS_USER_DEPT de ,
+		   	   SYS_USER us
+		WHERE
+		 	  DEPT_ID IN
+		 	  				<foreach collection="deptIds" item="deptId" index="index"
+									open="(" close=")" separator=",">
+							 		#{deptId}
+							</foreach>
+			 AND de.USER_ID = us.USER_ID
+			 AND us.DELETE_FLG <![CDATA[<>]]> '1'
+	</select>
+	<!--获取部门信息 -->
+	<select id="getDepartDetail" resultMap="departResultMap">
+		SELECT
+			dep.DEPT_ID,
+			dep.DEPT_NAME,
+			dep.PARENT_DEPT_ID,
+			sys.USER_ID,
+			us.USER_NAME
+		FROM
+			 M_DEPARTMENT_INFO dep LEFT JOIN SYS_USER_DEPT sys
+			 ON dep.DEPT_ID = sys.DEPT_ID
+			 LEFT JOIN SYS_USER us
+			 ON sys.USER_ID = us.USER_ID
+		WHERE
+			dep.DEPT_ID = #{departId}
+	</select>
+	<resultMap id = "departResultMap"  type="departManageInfoDto">
+		<id property="deptId" column="DEPT_ID" javaType="string" jdbcType="VARCHAR" />
+		<result property="deptId" column="DEPT_ID" javaType="string"
+			jdbcType="VARCHAR" />
+		<result property="deptName" column="DEPT_NAME" javaType="string"
+			jdbcType="VARCHAR" />
+		<result property="parentDeptId" column="PARENT_DEPT_ID" javaType="string"
+			jdbcType="VARCHAR" />
+		<collection property="userdeptDtos" ofType="UserDeptDto">
+			<id property="userId" column="USER_ID" javaType="string"
+				jdbcType="VARCHAR" />
+			<result property="userId" column="USER_ID" javaType="string"
+				jdbcType="VARCHAR" />
+			<result property="userName" column="USER_NAME" javaType="string"
+				jdbcType="VARCHAR" />
+		</collection>
+	</resultMap>
+	<!-- 修改部门详细信息 -->
+	<update id="departUpd">
+    	UPDATE
+    		M_DEPARTMENT_INFO
+		SET
+			DEPT_NAME = #{departInfo.deptName},
+			UPDATER = #{departInfo.updater},
+			UPDATE_DT = GETDATE()
+		WHERE
+		   	DEPT_ID = #{departInfo.deptId}
+	</update>
+	<!-- 删除部门负责人-->
+	<delete id="userDeptDelete">
+        DELETE
+        FROM
+             SYS_USER_DEPT
+        WHERE
+          	 DEPT_ID=#{departId}
+    </delete>
+	<!-- 删除部门 -->
+	<delete id="departDelete">
+        DELETE
+        FROM
+             M_DEPARTMENT_INFO
+        WHERE
+          	 DEPT_ID IN
+          	 			<foreach collection="deptIds" item="deptId" index="index"
+									open="(" close=")" separator=",">
+							 		#{deptId}
+						</foreach>
+    </delete>
+</mapper>

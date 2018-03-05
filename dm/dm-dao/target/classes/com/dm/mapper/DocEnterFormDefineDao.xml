@@ -1,0 +1,133 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+    PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+    "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.dm.dao.DocEnterFormDefineDao">
+	<!-- 查询文档类型数据 -->
+	<resultMap id="queryDocTypeInfoMap" type="DocDataSourceDto">
+        <result column="DOCUMENT_ITEM_NAME" property="documentItemName"/>
+        <collection property="dataSourceList" ofType="DocItemDataSourceCodeEntity">
+			<result column="DOCUMENT_ITEM_SOURCE_CODE" property="documentItemSourceCode"/>
+			<result column="DOCUMENT_ITEM_SOURCE_NAME" property="documentItemSourceName"/>
+			<result column="DOCUMENT_ITEM_SOURCE_NO" property="documentItemSourceNo"/>
+			<result column="ITEM_VALUE" property="itemValue"/>
+			<result column="ITEM_SORT_NO" property="itemSortNo"/>
+			<result column="ITEM_NAME" property="itemName"/>
+        </collection>
+    </resultMap>
+	<select id="queryDocTypeInfo" resultMap="queryDocTypeInfoMap">
+		SELECT didsc.*,dit.DOCUMENT_ITEM_NAME
+		FROM DOCUMENT_ITEM_DATA_SOURCE_CODE didsc
+		LEFT JOIN  DOCUMENT_ITEMS dit ON didsc.DOCUMENT_ITEM_SOURCE_CODE = dit.DOCUMENT_ITEM_SOURCE_CODE
+		WHERE dit.DOCUMENT_ITEM_CODE = 'DOCUMENT_ITEM_F00003'
+		ORDER BY didsc.DOCUMENT_ITEM_SOURCE_NO
+	</select>
+	<!-- 获取文档最终审核人 -->
+	<select id="queryLastApproveUser" resultType="DocumentItemSettingDto">
+		SELECT APPROVE_MANAGE.*,SYS_USER.USER_NAME
+		FROM APPROVE_MANAGE,SYS_USER
+		WHERE APPROVE_MANAGE.LAST_APPROVE_USER = SYS_USER.USER_ID
+		AND APPROVE_MANAGE.DOCUMENT_ITEM_TYPE = #{docType}
+		</select>
+	<!-- 查询已定义数据项 -->
+	<select id="queryDefinedInfo" resultType="DocDetailItemSettingDto">
+		SELECT ddis.*,DOCUMENT_ITEM_NAME,IS_FROM_TO_ITEM,DB_ITEM_NAME FROM DOCUMENT_DETAIL_ITEM_SETTING ddis
+		LEFT JOIN DOCUMENT_ITEMS dit ON dit.DOCUMENT_ITEM_CODE = ddis.DOCUMENT_ITEM_CODE
+		AND dit.DOCUMENT_ITEM_NO = ddis.DOCUMENT_ITEM_NO
+		WHERE DOCUMENT_TYPE = #{docType}
+		ORDER BY LAYOUT_ROW,LAYOUT_COL
+	</select>
+
+	<!-- 查询全部数据项 -->
+	<select id="queryAllDefineInfo" resultType="DocItemsEntity">
+		SELECT * FROM DOCUMENT_ITEMS
+		ORDER BY DOCUMENT_ITEM_CODE
+	</select>
+
+	<!-- 获取删除文档数据项 -->
+	<select id="queryDataItem" resultType="DocItemsEntity">
+		SELECT * FROM DOCUMENT_ITEMS
+		WHERE DOCUMENT_ITEM_CODE IN
+		<foreach collection="list" index="index" item="item" open="(" separator="," close=")">
+			#{item.documentItemCode}
+		</foreach>
+	</select>
+
+	<!-- 获取删除固定数据项 -->
+	<select id="getDelFixList" resultType="DocDetailInfoEntity">
+		SELECT
+		<foreach collection="list" index="index" item="item" open="" separator="," close="">
+			${item.dbItemName}
+		</foreach>
+		FROM DOCUMENT_DETAIL_INFO
+	</select>
+
+	<!-- 获取删除自定义数据项 -->
+	<select id="getDelCustomList" resultType="DocDetailCustomInfoEntity">
+		SELECT
+		<foreach collection="list" index="index" item="item" open="" separator="," close="">
+			${item.dbItemName}
+		</foreach>
+		FROM DOCUMENT_DETAIL_CUSTOME_INFO
+	</select>
+
+	<!-- 删除文档录入表单定义表 -->
+	<delete id="delDocDetailItemSettingByDoctype">
+		DELETE FROM DOCUMENT_DETAIL_ITEM_SETTING
+		WHERE DOCUMENT_TYPE = #{docType}
+	</delete>
+
+	<!-- 插入文档录入表单定义表 -->
+	<insert id="addDocDetailItemSettingByDoctype">
+		INSERT INTO DOCUMENT_DETAIL_ITEM_SETTING (
+			DOCUMENT_TYPE,
+			DOCUMENT_ITEM_CODE,
+			DOCUMENT_ITEM_NO,
+			LAYOUT_ROW,
+			LAYOUT_COL,
+			INPUT_REQUIRE,
+			CREATOR,
+			CREATE_DT
+		)
+		VALUES
+		<foreach collection="list" index="index" item="item" open="" separator="," close="">
+		(
+			#{item.documentType},
+			#{item.documentItemCode},
+			#{item.documentItemNo},
+			#{item.layoutRow},
+			#{item.layoutCol},
+			#{item.inputRequire},
+			#{item.creator},
+			GETDATE()
+		)
+		</foreach>
+	</insert>
+
+	<!-- 删除文档审核管理表 -->
+	<delete id="delApproveManager">
+		DELETE FROM APPROVE_MANAGE
+		WHERE DOCUMENT_ITEM_TYPE = #{docType}
+	</delete>
+
+	<!-- 插入文档审核管理表 -->
+	<insert id="addApproveManager">
+		INSERT INTO APPROVE_MANAGE
+		(
+			DOCUMENT_ITEM_TYPE,
+			LAST_APPROVE_USER,
+			CREATOR,
+			CREATE_DT
+		)
+		VALUES
+		<foreach collection="Array" index="index" item="item" open="" separator="," close="">
+		(
+			#{docType},
+			#{item},
+			#{creator},
+			GETDATE()
+		)
+		</foreach>
+	</insert>
+</mapper>

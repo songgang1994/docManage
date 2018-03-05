@@ -1,0 +1,594 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+    PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+    "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.dm.dao.DocEnterDao">
+
+	<select id="documentInfo" resultType="com.dm.entity.DocDetailInfoEntity">
+		SELECT
+			*
+		FROM
+			DOCUMENT_DETAIL_INFO
+		WHERE
+			DOCUMENT_CODE = #{documentCode}
+	</select>
+
+	<select id="displayItems" resultType="com.dm.dto.DocFormItemDto">
+		SELECT
+			s.*,
+			i.*
+		FROM
+			DOCUMENT_DETAIL_ITEM_SETTING s,
+			DOCUMENT_ITEMS i
+		WHERE
+			s.DOCUMENT_ITEM_CODE = i.DOCUMENT_ITEM_CODE
+		AND s.DOCUMENT_ITEM_NO   = i.DOCUMENT_ITEM_NO
+		AND s.DOCUMENT_TYPE      = #{documentType}
+		ORDER BY
+			LAYOUT_ROW,
+			LAYOUT_COL
+	</select>
+
+	<select id="dataSource" resultType="com.dm.entity.DocItemDataSourceCodeEntity">
+		SELECT
+			*
+		FROM
+			DOCUMENT_ITEM_DATA_SOURCE_CODE
+		WHERE
+			DOCUMENT_ITEM_SOURCE_CODE IN
+			<foreach collection="dataSource" item="item" open="(" close=")" separator=",">
+				#{item}
+			</foreach>
+		ORDER BY
+			DOCUMENT_ITEM_SOURCE_CODE,
+			ITEM_SORT_NO
+	</select>
+
+	<select id="paramMst" resultType="ParmMstEntity">
+		SELECT
+			*
+		FROM
+			PARM_MST
+		WHERE
+			TYPE1 = #{type1}
+	</select>
+
+	<select id="customItems" resultType="com.dm.entity.DocDetailCustomInfoEntity">
+		SELECT
+			DOCUMENT_CODE
+			<if test="null != costomeList and costomeList.size > 0">
+			,
+			<foreach collection="costomeList" index="index" item="item" open="" separator="," close="">
+			${item}
+			</foreach>
+			</if>
+
+		FROM
+			DOCUMENT_DETAIL_CUSTOME_INFO
+		WHERE
+			DOCUMENT_CODE = #{documentCode}
+	</select>
+
+	<select id="getDocViewDept" resultType="DocViewDeptEntity">
+		SELECT
+			DEPT_ID
+		FROM
+			DOCUMENT_VIEW_DEPT
+		WHERE DOCUMENT_CODE = #{documentCode}
+	</select>
+
+	<select id="getApprove" resultType="ApprovalDto">
+		SELECT
+			A.APPROVE_DATE,
+			A.APPROVE_USER_ID,
+			A.APPROVE_OPINION,
+			B.USER_NAME
+		FROM
+			DOCUMENT_APPROVE_HISTORY A
+		LEFT JOIN SYS_USER B ON A.APPROVE_USER_ID = B.USER_ID
+		WHERE A.DOCUMENT_CODE = #{documentCode}
+		ORDER BY A.APPROVE_HISTORY_ID
+	</select>
+
+	<select id="docItems" resultType="com.dm.entity.DocItemsEntity">
+		SELECT
+			*
+		FROM
+			DOCUMENT_ITEMS
+	</select>
+
+	<select id="docTypes" resultType="com.dm.entity.DocItemDataSourceCodeEntity">
+		SELECT
+			s.*
+		FROM
+			DOCUMENT_ITEMS i,
+			DOCUMENT_ITEM_DATA_SOURCE_CODE s
+		WHERE
+			i.DOCUMENT_ITEM_CODE 		= 'DOCUMENT_ITEM_F00003'
+		AND i.DOCUMENT_ITEM_SOURCE_CODE = s.DOCUMENT_ITEM_SOURCE_CODE
+		ORDER BY
+			s.ITEM_SORT_NO
+	</select>
+
+	<select id="lastApproveUser" resultType="String">
+		SELECT
+			LAST_APPROVE_USER
+		FROM
+			APPROVE_MANAGE
+		WHERE
+			DOCUMENT_ITEM_TYPE = #{documentType}
+	</select>
+
+	<select id="departId" resultType="String">
+		SELECT
+			DEPT_ID
+		FROM
+			SYS_USER_DEPT
+		WHERE
+			USER_ID = #{userId}
+	</select>
+
+	<select id="superUserIds" resultType="String">
+		WITH ALL_DEPARTMENT_INFO(DEPT_ID, PARENT_DEPT_ID, LEVEL) AS (
+			SELECT
+				DEPT_ID,
+				PARENT_DEPT_ID,
+				0 AS LEVEL
+			FROM
+				M_DEPARTMENT_INFO
+			WHERE
+				DEPT_ID IN (
+					SELECT DEPT_ID
+					FROM SYS_USER_DEPT
+					WHERE USER_ID = #{userId}
+				)
+
+			UNION ALL
+
+			SELECT
+				A.DEPT_ID,
+				A.PARENT_DEPT_ID,
+				B.LEVEL + 1
+			FROM
+				M_DEPARTMENT_INFO A
+				ALL_DEPARTMENT_INFO B
+			WHERE
+				A.DEPT_ID = B.PARENT_DEPT_ID
+		)
+
+		SELECT
+			B.USER_ID
+		FROM
+			ALL_DEPARTMENT_INFO A,
+			SYS_USER_DEPT B
+		WHERE
+			B.DEPT_ID = A.DEPT_ID
+		AND B.LEADER_FLG = 1
+	</select>
+
+	<select id="listDocCodes">
+		SELECT
+			*
+		FROM
+			DOCUMENT_CODE_MANAGE
+		WHERE
+			DOCUMENT_TYPE = #{documentType}
+	</select>
+
+	<!-- 查询文档编号管理表 -->
+	<select id="queryDocCode" resultType="com.dm.entity.DocCodeManageEntity">
+		SELECT
+			*
+		FROM
+			DOCUMENT_CODE_MANAGE
+		WHERE
+			DOCUMENT_TYPE = #{documentType}
+		AND DOCUMENT_FY = #{documentFy}
+	</select>
+
+	<!-- FY年度数据存在时，获取文档编号放入【文档编号】，更新文档编号管理表 -->
+	<update id="increaseLastNo">
+		UPDATE
+			DOCUMENT_CODE_MANAGE
+		SET
+			LAST_NO = LAST_NO + 1,
+			UPDATER = #{updater},
+			UPDATE_DT = GETDATE()
+		WHERE
+			DOCUMENT_TYPE = #{documentType}
+		AND DOCUMENT_FY = #{documentFy}
+	</update>
+
+	<!-- FY年度数据不存在时，插入该FY年度的数据 -->
+	<insert id="createLastNo">
+		INSERT INTO DOCUMENT_CODE_MANAGE
+			   (DOCUMENT_TYPE,  DOCUMENT_FY,   LAST_NO, CREATOR, CREATE_DT)
+		VALUES (#{documentType}, #{documentFy}, 0, #{creator}, GETDATE())
+	</insert>
+
+	<!-- log插入 -->
+	<insert id="createLog">
+		INSERT INTO SYS_LOG
+			(OPR_DATETIME,USER_ID,IP,DOCUMENT_CODE,OPR_CONTENT,CREATOR,CREATE_DT,UPDATER,UPDATE_DT)
+		VALUES
+			(#{log.oprDatetime},
+			#{log.userId},
+			#{log.ip},
+			#{log.documentCode},
+			#{log.oprContent},
+			#{log.creator},
+			#{log.createDt},
+			#{log.updater},
+			#{log.updateDt})
+	</insert>
+
+	<select id="queryViewDept" resultType="String">
+		SELECT
+			DEPT_ID
+		FROM
+			DOCUMENT_VIEW_DEPT
+		WHERE
+			DOCUMENT_CODE = #{documentCode}
+	</select>
+
+	<!-- 表单验证： 查询文档录入表单定义表和文档数据项 -->
+	<select id="displayItemsForCheck" resultType="com.dm.dto.DocFormItemDto">
+		SELECT
+			DOCUMENT_DETAIL_ITEM_SETTING.DOCUMENT_ITEM_CODE,
+			DOCUMENT_DETAIL_ITEM_SETTING.INPUT_REQUIRE,
+			DOCUMENT_ITEMS.MAX_LENGTH,
+			DOCUMENT_ITEMS.IS_FIX_ITEM,
+			DOCUMENT_ITEMS.IS_FROM_TO_ITEM,
+			DOCUMENT_ITEMS.DB_ITEM_NAME
+		FROM
+			DOCUMENT_DETAIL_ITEM_SETTING,
+			DOCUMENT_ITEMS
+		WHERE
+			DOCUMENT_DETAIL_ITEM_SETTING.DOCUMENT_TYPE = #{documentType}
+		AND DOCUMENT_DETAIL_ITEM_SETTING.DOCUMENT_ITEM_CODE = DOCUMENT_ITEMS.DOCUMENT_ITEM_CODE
+		AND DOCUMENT_DETAIL_ITEM_SETTING.DOCUMENT_ITEM_NO = DOCUMENT_ITEMS.DOCUMENT_ITEM_NO
+	</select>
+
+	<!-- 表单验证： 旧文件编号唯一性验证（文档录入表单定义表未定义时不需要验证） -->
+	<select id="checkDocOldCode" resultType="int">
+		SELECT
+			COUNT(*)
+		FROM
+			DOCUMENT_DETAIL_INFO
+		WHERE
+			DOCUMENT_OLD_CODE = #{documentOldCode}
+		AND DOCUMENT_CODE = #{documentCode}
+	</select>
+
+	<!-- 文档新增 固定项 -->
+	<insert id="addDocDetailInfo">
+		INSERT INTO DOCUMENT_DETAIL_INFO (
+			DOCUMENT_CODE,
+			DOCUMENT_OLD_CODE,
+			DOCUMENT_TYPE,
+			DEPT_ID,
+			DIRECTOR,
+			APPROVAL_STATUS,
+			APPROVAL_COMMENT,
+			APPROVAL_DEPT_ID,
+			CREATOR,
+			CREATE_DT )
+		VALUES (
+			#{doc.documentCode},
+			#{doc.documentOldCode},
+			#{doc.documentType},
+			#{doc.deptId},
+			#{doc.director},
+			#{doc.approvalStatus},
+			#{doc.approvalComment},
+			#{doc.approvalDeptId},
+			#{doc.creator},
+			GETDATE()
+		)
+	</insert>
+
+	<!-- 文档更新 固定项 -->
+	<update id="updateDocDetailInfo">
+		UPDATE DOCUMENT_DETAIL_INFO
+		SET
+			DOCUMENT_OLD_CODE = #{doc.documentOldCode},
+			DOCUMENT_TYPE = #{doc.documentType},
+			DEPT_ID = #{doc.deptId},
+			DIRECTOR = #{doc.director},
+			APPROVAL_STATUS = #{doc.approvalStatus},
+			APPROVAL_COMMENT = #{doc.approvalComment},
+			APPROVAL_DEPT_ID = #{doc.approvalDeptId},
+			UPDATER = #{doc.updater},
+			UPDATE_DT = GETDATE()
+		WHERE
+			DOCUMENT_CODE = #{doc.documentCode}
+	</update>
+
+	<!-- 文档新增 自定义数据项 -->
+	<insert id="addDocDetailCustomInfo">
+		INSERT INTO DOCUMENT_DETAIL_CUSTOME_INFO (
+			DOCUMENT_CODE,
+			CUSTOME_ITEM1, CUSTOME_ITEM2, CUSTOME_ITEM3, CUSTOME_ITEM4, CUSTOME_ITEM5, CUSTOME_ITEM6, CUSTOME_ITEM7, CUSTOME_ITEM8, CUSTOME_ITEM9, CUSTOME_ITEM10, CUSTOME_ITEM11, CUSTOME_ITEM12, CUSTOME_ITEM13, CUSTOME_ITEM14, CUSTOME_ITEM15, CUSTOME_ITEM16, CUSTOME_ITEM17, CUSTOME_ITEM18, CUSTOME_ITEM19, CUSTOME_ITEM20, CUSTOME_ITEM21, CUSTOME_ITEM22, CUSTOME_ITEM23, CUSTOME_ITEM24, CUSTOME_ITEM25, CUSTOME_ITEM26, CUSTOME_ITEM27, CUSTOME_ITEM28, CUSTOME_ITEM29, CUSTOME_ITEM30, CUSTOME_ITEM31, CUSTOME_ITEM32, CUSTOME_ITEM33, CUSTOME_ITEM34, CUSTOME_ITEM35, CUSTOME_ITEM36, CUSTOME_ITEM37, CUSTOME_ITEM38, CUSTOME_ITEM39, CUSTOME_ITEM40, CUSTOME_ITEM41, CUSTOME_ITEM42, CUSTOME_ITEM43, CUSTOME_ITEM44, CUSTOME_ITEM45, CUSTOME_ITEM46, CUSTOME_ITEM47, CUSTOME_ITEM48, CUSTOME_ITEM49, CUSTOME_ITEM50,
+			CREATOR,
+			CREATE_DT
+		) VALUES (
+			#{custome.documentCode},
+			#{custome.customeItem1}, #{custome.customeItem2}, #{custome.customeItem3}, #{custome.customeItem4}, #{custome.customeItem5}, #{custome.customeItem6}, #{custome.customeItem7}, #{custome.customeItem8}, #{custome.customeItem9}, #{custome.customeItem10}, #{custome.customeItem11}, #{custome.customeItem12}, #{custome.customeItem13}, #{custome.customeItem14}, #{custome.customeItem15}, #{custome.customeItem16}, #{custome.customeItem17}, #{custome.customeItem18}, #{custome.customeItem19}, #{custome.customeItem20}, #{custome.customeItem21}, #{custome.customeItem22}, #{custome.customeItem23}, #{custome.customeItem24}, #{custome.customeItem25}, #{custome.customeItem26}, #{custome.customeItem27}, #{custome.customeItem28}, #{custome.customeItem29}, #{custome.customeItem30}, #{custome.customeItem31}, #{custome.customeItem32}, #{custome.customeItem33}, #{custome.customeItem34}, #{custome.customeItem35}, #{custome.customeItem36}, #{custome.customeItem37}, #{custome.customeItem38}, #{custome.customeItem39}, #{custome.customeItem40}, #{custome.customeItem41}, #{custome.customeItem42}, #{custome.customeItem43}, #{custome.customeItem44}, #{custome.customeItem45}, #{custome.customeItem46}, #{custome.customeItem47}, #{custome.customeItem48}, #{custome.customeItem49}, #{custome.customeItem50},
+			#{custome.creator},
+			GETDATE()
+		)
+
+	</insert>
+
+	<!-- 文档更新 自定义数据项 -->
+	<update id="updateDocDetailCustomInfo">
+		UPDATE
+			DOCUMENT_DETAIL_CUSTOME_INFO
+		SET
+			CUSTOME_ITEM1 = #{custome.customeItem1}, CUSTOME_ITEM2 = #{custome.customeItem2}, CUSTOME_ITEM3 = #{custome.customeItem3}, CUSTOME_ITEM4 = #{custome.customeItem4}, CUSTOME_ITEM5 = #{custome.customeItem5}, CUSTOME_ITEM6 = #{custome.customeItem6}, CUSTOME_ITEM7 = #{custome.customeItem7}, CUSTOME_ITEM8 = #{custome.customeItem8}, CUSTOME_ITEM9 = #{custome.customeItem9}, CUSTOME_ITEM10 = #{custome.customeItem10}, CUSTOME_ITEM11 = #{custome.customeItem11}, CUSTOME_ITEM12 = #{custome.customeItem12}, CUSTOME_ITEM13 = #{custome.customeItem13}, CUSTOME_ITEM14 = #{custome.customeItem14}, CUSTOME_ITEM15 = #{custome.customeItem15}, CUSTOME_ITEM16 = #{custome.customeItem16}, CUSTOME_ITEM17 = #{custome.customeItem17}, CUSTOME_ITEM18 = #{custome.customeItem18}, CUSTOME_ITEM19 = #{custome.customeItem19}, CUSTOME_ITEM20 = #{custome.customeItem20}, CUSTOME_ITEM21 = #{custome.customeItem21}, CUSTOME_ITEM22 = #{custome.customeItem22}, CUSTOME_ITEM23 = #{custome.customeItem23}, CUSTOME_ITEM24 = #{custome.customeItem24}, CUSTOME_ITEM25 = #{custome.customeItem25}, CUSTOME_ITEM26 = #{custome.customeItem26}, CUSTOME_ITEM27 = #{custome.customeItem27}, CUSTOME_ITEM28 = #{custome.customeItem28}, CUSTOME_ITEM29 = #{custome.customeItem29}, CUSTOME_ITEM30 = #{custome.customeItem30}, CUSTOME_ITEM31 = #{custome.customeItem31}, CUSTOME_ITEM32 = #{custome.customeItem32}, CUSTOME_ITEM33 = #{custome.customeItem33}, CUSTOME_ITEM34 = #{custome.customeItem34}, CUSTOME_ITEM35 = #{custome.customeItem35}, CUSTOME_ITEM36 = #{custome.customeItem36}, CUSTOME_ITEM37 = #{custome.customeItem37}, CUSTOME_ITEM38 = #{custome.customeItem38}, CUSTOME_ITEM39 = #{custome.customeItem39}, CUSTOME_ITEM40 = #{custome.customeItem40}, CUSTOME_ITEM41 = #{custome.customeItem41}, CUSTOME_ITEM42 = #{custome.customeItem42}, CUSTOME_ITEM43 = #{custome.customeItem43}, CUSTOME_ITEM44 = #{custome.customeItem44}, CUSTOME_ITEM45 = #{custome.customeItem45}, CUSTOME_ITEM46 = #{custome.customeItem46}, CUSTOME_ITEM47 = #{custome.customeItem47}, CUSTOME_ITEM48 = #{custome.customeItem48}, CUSTOME_ITEM49 = #{custome.customeItem49}, CUSTOME_ITEM50 = #{custome.customeItem50},
+			UPDATER = #{custome.updater},
+			UPDATE_DT = GETDATE()
+		WHERE DOCUMENT_CODE = #{custome.documentCode}
+
+	</update>
+
+	<!--  -->
+	<select id="getLevelDeptInfo" resultType="LevelDeptInfoDto">
+		WITH LEVEL_M_DEPARTMENT_INFO (
+			DEPT_ID,
+			DEPT_NAME,
+			PARENT_DEPT_ID,
+			LEVEL
+		) AS (
+			SELECT
+				A.DEPT_ID,
+				A.DEPT_NAME,
+				A.PARENT_DEPT_ID,
+				0 AS LEVEL
+			FROM
+				M_DEPARTMENT_INFO A
+			WHERE
+				A.DEPT_ID IN
+				<foreach collection="list" item="item" open="(" close=")" separator=",">
+				#{item.deptId}
+				</foreach>
+			UNION ALL
+				SELECT
+					B.DEPT_ID,
+					B.DEPT_NAME,
+					B.PARENT_DEPT_ID,
+					C. LEVEL + 1 AS LEVEL
+				FROM
+					M_DEPARTMENT_INFO B,
+					LEVEL_M_DEPARTMENT_INFO C
+				WHERE
+					B.PARENT_DEPT_ID = C.DEPT_ID
+		) SELECT
+				*
+			FROM
+				LEVEL_M_DEPARTMENT_INFO
+			WHERE
+				PARENT_DEPT_ID = (
+					SELECT
+						TOP 1 DEPT_ID
+					FROM
+						LEVEL_M_DEPARTMENT_INFO
+					WHERE
+						PARENT_DEPT_ID IS NULL
+				)
+		ORDER BY
+			LEVEL DESC
+	</select>
+
+	<!--  -->
+	<select id="getSubDeptInfo" resultType="LevelDeptInfoDto">
+		WITH SUB_M_DEPARTMENT_INFO (DEPT_ID, PARENT_DEPT_ID) AS (
+			SELECT
+				A.DEPT_ID,
+				A.PARENT_DEPT_ID
+			FROM
+				M_DEPARTMENT_INFO A
+			WHERE
+				A.DEPT_ID IN
+				<foreach collection="list" item="item" open="(" close=")" separator=",">
+				#{item}
+				</foreach>
+			UNION ALL
+				SELECT
+					B.DEPT_ID,
+					B.PARENT_DEPT_ID
+				FROM
+					M_DEPARTMENT_INFO B,
+					SUB_M_DEPARTMENT_INFO C
+				WHERE
+					B.PARENT_DEPT_ID = C.DEPT_ID
+		) SELECT
+			*
+		FROM
+			SUB_M_DEPARTMENT_INFO
+	</select>
+
+	<!--  -->
+	<insert id="addViewDept">
+		INSERT INTO DOCUMENT_VIEW_DEPT (
+			DOCUMENT_CODE, DEPT_ID, CREATOR, CREATE_DT
+		) VALUES (
+			#{viewDept.documentCode},
+			#{viewDept.deptId},
+			#{viewDept.creator},
+			GETDATE()
+		)
+	</insert>
+
+	<delete id="deleteViewDept">
+		DELETE FROM
+			DOCUMENT_VIEW_DEPT
+		WHERE
+			DOCUMENT_CODE = #{documentCode}
+	</delete>
+
+	<!-- 文件列表 -->
+	<select id="files" resultType="com.dm.entity.DocFileEntity">
+		SELECT
+			DOCUMENT_CODE,
+			FILE_NO,
+			FILE_TYPE,
+			FILE_NAME,
+			CREATOR,
+			CREATE_DT,
+			UPDATER,
+			UPDATE_DT
+		FROM
+			DOCUMENT_FILE
+		WHERE
+			DOCUMENT_CODE = #{documentCode}
+	</select>
+
+	<!-- 文件删除 -->
+	<delete id="deleteFile">
+		DELETE FROM DOCUMENT_FILE
+		WHERE
+			DOCUMENT_CODE = #{docFile.documentCode}
+		AND FILE_NO = #{docFile.fileNo}
+	</delete>
+
+	<!-- 文件更新 -->
+	<update id="updateFile">
+		UPDATE
+			DOCUMENT_FILE
+		SET
+			FILE_NAME = #{docFile.fileName},
+			FILE_CONTENT = #{docFile.fileContent},
+			UPDATER = #{docFile.updater},
+			UPDATE_DT = GETDATE()
+		WHERE
+			DOCUMENT_CODE = #{docFile.documentCode}
+		AND FILE_NO = #{docFile.fileNo}
+	</update>
+
+	<!-- 文件新增 -->
+	<insert id="addFile">
+
+		<selectKey resultType="BigDecimal" keyProperty="docFile.fileNo" order="BEFORE">
+			SELECT
+                CASE
+                WHEN MAX(FILE_NO) IS NULL
+                THEN 1
+                ELSE MAX(FILE_NO) + 1
+                END
+			FROM
+				DOCUMENT_FILE
+			WHERE
+				DOCUMENT_CODE = #{docFile.documentCode}
+		</selectKey>
+
+		INSERT INTO DOCUMENT_FILE (
+			DOCUMENT_CODE, FILE_NO, FILE_TYPE, FILE_NAME, FILE_CONTENT, CREATOR, CREATE_DT
+		) VALUES (
+			#{docFile.documentCode}, #{docFile.fileNo}, #{docFile.fileType},
+			#{docFile.fileName}, #{docFile.fileContent}, #{docFile.creator}, GETDATE()
+		)
+	</insert>
+
+	<!-- 查询文档编号FCODE -->
+	<select id="queryFCODE" resultType="String">
+		SELECT
+			ITEM_OTHER_VALUE
+		FROM
+			DOCUMENT_ITEM_DATA_SOURCE_CODE
+		WHERE
+			DOCUMENT_ITEM_SOURCE_CODE = 'DATA_SOURCE_F00001'
+		AND ITEM_VALUE = #{documentType}
+	</select>
+
+	<!-- 获取单个文件 -->
+	<select id="mainFile" resultType="com.dm.entity.DocFileEntity">
+		SELECT
+			*
+		FROM
+			DOCUMENT_FILE
+		WHERE
+			DOCUMENT_CODE = #{documentCode}
+		AND FILE_TYPE = 1
+	</select>
+
+	<!-- 获取单个文件 -->
+	<select id="subFile" resultType="com.dm.entity.DocFileEntity">
+		SELECT
+			*
+		FROM
+			DOCUMENT_FILE
+		WHERE
+			DOCUMENT_CODE = #{documentCode}
+		AND FILE_TYPE = 2
+		AND FILE_NO = #{fileNo}
+	</select>
+
+	<!--  -->
+	<select id="getDocCustom" resultType="DocDetailCustomInfoEntity">
+		SELECT
+			*
+		FROM
+			DOCUMENT_DETAIL_CUSTOME_INFO
+		WHERE
+			DOCUMENT_CODE = #{documentCode}
+	</select>
+	<!--  -->
+	<select id="getDocDetail" resultType="DocDetailInfoEntity">
+		SELECT
+			*
+		FROM
+			DOCUMENT_DETAIL_INFO
+		WHERE
+			DOCUMENT_CODE = #{documentCode}
+	</select>
+	<select id="getdeptName" resultType="java.lang.String">
+		SELECT
+			DEPT_NAME
+		FROM
+			M_DEPARTMENT_INFO
+		WHERE
+			DEPT_ID = #{deptId}
+	</select>
+	<select id="getUserEntity" resultType="UserEntity">
+		SELECT
+			*
+		FROM
+			SYS_USER
+		WHERE
+			USER_ID = #{userId}
+	</select>
+	<select id="getDeptLeaderId" resultType="UserDeptDto">
+		SELECT SYS_USER_DEPT.USER_ID,M_DEPARTMENT_INFO.PARENT_DEPT_ID,LEADER_FLG,M_DEPARTMENT_INFO.DEPT_ID
+		FROM SYS_USER_DEPT
+		LEFT JOIN M_DEPARTMENT_INFO ON SYS_USER_DEPT.DEPT_ID = M_DEPARTMENT_INFO.DEPT_ID
+		WHERE SYS_USER_DEPT.DEPT_ID = #{deptId}
+	</select>
+	<select id="getDeptIdByDocCode" resultType="java.lang.String" >
+	SELECT APPROVAL_DEPT_ID
+	FROM DOCUMENT_DETAIL_INFO
+	WHERE DOCUMENT_CODE = #{docCode}
+	</select>
+	<select id="getUserEntities" resultType="UserEntity" >
+	SELECT
+		USER_NAME,
+		EMAIL
+	FROM
+		SYS_USER
+	LEFT JOIN SYS_USER_DEPT ON SYS_USER_DEPT.USER_ID = SYS_USER.USER_ID
+	WHERE 1=1
+	<foreach collection="deptIds" item="item" open=" AND SYS_USER_DEPT.DEPT_ID IN  (" close=")" separator=",">
+				#{item}
+	</foreach>
+	</select>
+	<select id="getInputRequire" resultType="DocDetailItemSettingEntity">
+		SELECT
+			*
+		FROM
+			DOCUMENT_DETAIL_ITEM_SETTING
+		WHERE
+			DOCUMENT_TYPE = #{docType}
+			AND DOCUMENT_ITEM_CODE = #{docItemCode}
+			AND DOCUMENT_ITEM_NO = 0
+	</select>
+</mapper>

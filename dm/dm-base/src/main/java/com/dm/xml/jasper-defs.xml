@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="
+        http://www.springframework.org/schema/beans
+        http://www.springframework.org/schema/beans/spring-beans-3.1.xsd">
+
+    <bean id="iReportView" class="com.dm.report.BaseIReportView">
+        <!-- <property name="url" value="/WEB-INF/jasper/report1.jasper"/> -->
+        <property name="reportDataKey" value="jrMainDataSource"/>
+        <property name="exporterParameters">  <!-- 渲染时的相关参数 -->
+			<map>
+				<entry key="net.sf.jasperreports.engine.export.JRHtmlExporterParameter.IMAGES_URI" value="../image?image="/>  <!-- HTML时的白色背景图片(px)路径 -->
+				<entry key="net.sf.jasperreports.engine.export.JRHtmlExporterParameter.CHARACTER_ENCODING" value="UTF-8"/>
+				<entry key="net.sf.jasperreports.engine.export.JRCsvExporterParameter.CHARACTER_ENCODING" value="UTF-8"/>
+			</map>
+		</property>
+    </bean>
+</beans>

@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+    PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+    "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.dm.dao.PersonResponsibleEditDao">
+	<!-- 根据用户id获取部门信息 -->
+	<select id="getDeptByUserId" resultType="DepartmentInfoEntity">
+		SELECT M_DEPARTMENT_INFO.* FROM M_DEPARTMENT_INFO
+		LEFT JOIN SYS_USER_DEPT ON M_DEPARTMENT_INFO.DEPT_ID = SYS_USER_DEPT.DEPT_ID
+		LEFT JOIN SYS_USER ON SYS_USER.USER_ID = SYS_USER_DEPT.USER_ID
+		WHERE SYS_USER.USER_ID = #{userId}
+	</select>
+	<!--  -->
+	<select id="getDocSource" resultType="DocItemDataSourceCodeEntity">
+		SELECT * FROM DOCUMENT_ITEM_DATA_SOURCE_CODE
+		WHERE DOCUMENT_ITEM_SOURCE_CODE = 'DATA_SOURCE_F00001'
+	</select>
+	<!--  -->
+	<select id="getDocStatus" resultType="ParmMstEntity">
+		SELECT * FROM PARM_MST
+		WHERE TYPE1 = 'DOCUMENT_STATUS'
+	</select>
+	<!-- 查询结果 -->
+	<select id="query" resultType="PersonResDto">
+		SELECT
+		A.DOCUMENT_CODE,
+		B.ITEM_VALUE AS DOCUMENT_TYPE,
+		ISNULL(A.FILE_CONTENT,'') AS FILE_CONTENT,
+		ISNULL(C.[VALUE],'') AS APPROVAL_STATUS,
+		D.FILE_NAME AS FILE_NAME,
+		A.UPDATE_DT
+		FROM DOCUMENT_DETAIL_INFO A
+		LEFT JOIN DOCUMENT_ITEM_DATA_SOURCE_CODE B ON B.DOCUMENT_ITEM_SOURCE_CODE = 'DATA_SOURCE_F00001'
+		AND B.ITEM_VALUE = A.DOCUMENT_TYPE
+		LEFT JOIN PARM_MST C ON C.TYPE1 = '1'
+		AND C.[VALUE] = A.APPROVAL_STATUS
+		LEFT JOIN DOCUMENT_FILE D ON D.FILE_TYPE = '1'
+		AND D.DOCUMENT_CODE = A.DOCUMENT_CODE
+		INNER JOIN SYS_USER_DEPT E ON A.DEPT_ID = E.DEPT_ID
+		WHERE E.USER_ID = #{userId}
+		AND A.DIRECTOR = #{personId}
+		<if test="docType != null and docType != '' ">
+		AND A.DOCUMENT_TYPE = #{docType}
+		</if>
+		<if test="docStatus != null and docStatus != ''">
+		AND A.APPROVAL_STATUS = #{docStatus}
+		</if>
+		ORDER BY
+		A.DOCUMENT_TYPE,A.APPROVAL_STATUS,A.UPDATE_DT
+	</select>
+	<!-- 根据父文件查询子文件 -->
+	<select id="getChildFileByParentFile" resultType="DocFileEntity">
+		SELECT DOCUMENT_CODE,FILE_NO,FILE_NAME FROM DOCUMENT_FILE
+		WHERE DOCUMENT_CODE IN
+		<foreach collection="list" index="index" item="item" open="(" separator="," close=")">
+			#{item.documentCode}
+		</foreach>
+		AND FILE_TYPE = '2'
+	</select>
+	<!-- 修改文档责任人 -->
+	<update id="resEditSubmit">
+		UPDATE DOCUMENT_DETAIL_INFO
+		SET DIRECTOR = #{appointPersonId},UPDATER = #{userId},UPDATE_DT = #{sysDate}
+		WHERE DOCUMENT_CODE IN
+		<foreach collection="docCode" index="index" item="item" open="(" separator="," close=")">
+			#{item}
+		</foreach>
+	</update>
+</mapper>

@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+    PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+    "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+    <mapper namespace="com.dm.dao.MenuManageDao">
+   			<!-- 获取菜单数据 -->
+	<select id="getMenuList" resultType="SysMenuEntity">
+		SELECT
+			MENU_ID,
+			TEXT,
+			PARENT,
+			SORT_NO
+		FROM
+			 SYS_MENU
+	    ORDER BY
+	  		SORT_NO
+	</select>
+	<update id="menuUpd" parameterType="list">
+            UPDATE SYS_MENU
+            <trim prefix="set" suffixOverrides=",">
+             <trim prefix="TEXT =case" suffix="end,">
+                 <foreach collection="menuList" item="menu" index="index">
+                         <if test="menu.text!=null">
+                          WHEN MENU_ID=#{menu.menuId} THEN #{menu.text}
+                         </if>
+                 </foreach>
+              </trim>
+              <trim prefix="SORT_NO=case" suffix="end,">
+                 <foreach collection="menuList" item="menu" index="index">
+                         <if test="menu.sortNo!=null">
+                          WHEN MENU_ID=#{menu.menuId} THEN #{menu.sortNo}
+                         </if>
+                 </foreach>
+              </trim>
+               <trim prefix="UPDATER=case" suffix="end,">
+                 <foreach collection="menuList" item="menu" index="index">
+                         <if test="menu.updater!=null">
+                          WHEN MENU_ID=#{menu.menuId} THEN #{menu.updater}
+                         </if>
+                 </foreach>
+              </trim>
+              <trim prefix="UPDATE_DT=case" suffix="end,">
+                 <foreach collection="menuList" item="menu" index="index">
+                         <if test="menu.updater!=null">
+                          WHEN MENU_ID=#{menu.menuId} THEN GETDATE()
+                         </if>
+                 </foreach>
+              </trim>
+             </trim>
+            WHERE
+            <foreach collection="menuList" separator="or" item="menu" index="index" >
+              MENU_ID=#{menu.menuId}
+          </foreach>
+	</update>
+    </mapper>

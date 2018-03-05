@@ -1,0 +1,487 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+    PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+    "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.dm.dao.DocItemsDao">
+
+	<select id="search" resultType="com.dm.dto.DocItemsDto">
+	    SELECT
+		*
+		FROM
+		(
+			SELECT
+				ROW_NUMBER() OVER (ORDER BY a.DOCUMENT_ITEM_CODE ASC) AS row,
+				*
+		    FROM
+		    (
+				SELECT DISTINCT
+					i.DOCUMENT_ITEM_CODE AS DOCUMENT_ITEM_CODE,
+					i.DOCUMENT_ITEM_NAME,
+					i.IS_FIX_ITEM,
+					i.DOCUMENT_ITEM_SOURCE_CODE,
+					s.DOCUMENT_ITEM_SOURCE_NAME,
+					PARM_MST.DISP_NAME AS ITEM_TYPE_DISP_NAME
+				FROM
+					DOCUMENT_ITEMS i
+				LEFT JOIN
+					DOCUMENT_ITEM_DATA_SOURCE_CODE s
+				ON  i.DOCUMENT_ITEM_SOURCE_CODE = s.DOCUMENT_ITEM_SOURCE_CODE
+				LEFT JOIN
+					PARM_MST
+				ON  PARM_MST.TYPE1 = 'ITEM_TYPE'
+				AND PARM_MST.VALUE = i.DOCUMENT_ITEM_TYPE
+				WHERE
+					i.IS_BLANK_ITEM <![CDATA[<>]]> 1
+				<!-- search -->
+					AND i.DOCUMENT_ITEM_NAME LIKE #{docItemsName}
+				<if test="docItemsType != null and docItemsType != ''">
+					AND i.DOCUMENT_ITEM_TYPE =    #{docItemsType}
+				</if>
+				) a
+		) b
+		WHERE
+			row >= #{start} + 1
+		AND row <![CDATA[<=]]> #{start} + #{length}
+	</select>
+<select id="getSearchCount" resultType="int">
+	 SELECT
+	 COUNT(a.DOCUMENT_ITEM_CODE)
+	    FROM
+	    (
+		SELECT DISTINCT
+			i.DOCUMENT_ITEM_CODE
+		FROM
+			DOCUMENT_ITEMS i
+		LEFT JOIN
+			DOCUMENT_ITEM_DATA_SOURCE_CODE s
+		ON  i.DOCUMENT_ITEM_SOURCE_CODE = s.DOCUMENT_ITEM_SOURCE_CODE
+		LEFT JOIN
+			PARM_MST
+		ON  PARM_MST.TYPE1 = 'ITEM_TYPE'
+		AND PARM_MST.VALUE = i.DOCUMENT_ITEM_TYPE
+		WHERE
+			i.IS_BLANK_ITEM <![CDATA[<>]]> 1
+		<!-- search -->
+			AND i.DOCUMENT_ITEM_NAME LIKE #{docItemsName}
+		<if test="docItemsType != null and docItemsType != ''">
+			AND i.DOCUMENT_ITEM_TYPE =    #{docItemsType}
+		</if>
+		) a
+	</select>
+	<select id="itemSettingUsages" resultType="com.dm.dto.ItemSettingUsageDto">
+		SELECT
+			s.DOCUMENT_ITEM_SOURCE_NAME,
+			d.DOCUMENT_ITEM_CODE
+		FROM
+			DOCUMENT_DETAIL_ITEM_SETTING d,
+			DOCUMENT_ITEM_DATA_SOURCE_CODE s
+		WHERE
+			d.DOCUMENT_ITEM_CODE = #{docItemCode}
+		AND s.DOCUMENT_ITEM_SOURCE_CODE = 'DATA_SOURCE_F00001'
+		AND s.ITEM_VALUE = d.DOCUMENT_TYPE
+	</select>
+
+	<select id="searchItemSettingUsage" resultType="int">
+		SELECT
+			COUNT(*)
+		FROM
+			DOCUMENT_SEARCH_ITEM_SETTING   <!-- 文档一览检索数据项定义表 -->
+		WHERE
+			DOCUMENT_ITEM_CODE = #{docItemCode}
+	</select>
+
+	<delete id="delete">
+		DELETE FROM DOCUMENT_ITEMS
+		WHERE DOCUMENT_ITEM_CODE = #{docItemCode}
+	</delete>
+
+
+
+<!--//====================================新建修改文档业务区域===========================================  -->
+     <!-- 数据源选择遍历 -->
+     <select id="getDateList"  resultType="DocItemDataSourceCodeEntity">
+           SELECT
+           		DOCUMENT_ITEM_SOURCE_CODE,DOCUMENT_ITEM_SOURCE_NAME
+           FROM DOCUMENT_ITEM_DATA_SOURCE_CODE
+			WHERE DOCUMENT_ITEM_SOURCE_CODE <![CDATA[<>]]> 'DATA_SOURCE_F00001'
+           		GROUP BY DOCUMENT_ITEM_SOURCE_CODE,DOCUMENT_ITEM_SOURCE_NAME
+           		ORDER BY DOCUMENT_ITEM_SOURCE_CODE
+     </select>
+
+     <!-- 当数据项编号不为空时，查询所有数据 -->
+     <select id="getDocItem" resultType="DocItemsEntity" >
+            SELECT
+            		DISTINCT DOCUMENT_ITEM_CODE,
+            		DOCUMENT_ITEM_TYPE,
+            		DOCUMENT_ITEM_NAME,
+            		DOCUMENT_ITEM_SOURCE_CODE,
+            		MAX_LENGTH,
+            		IS_PUBLIC_ITEM,
+            		IS_FIX_ITEM,
+            		IS_BLANK_ITEM,
+            		IS_FROM_TO_ITEM,
+					NUMBER_FORMAT
+            FROM
+            		DOCUMENT_ITEMS
+            WHERE
+            		DOCUMENT_ITEM_CODE = #{documentItemCode}
+     </select>
+
+      <!-- 通过数据项编号修改信息（combox未改变的情况下） -->
+      <update id="updateDocItem" parameterType="DocItemsEntity">
+             UPDATE
+             		DOCUMENT_ITEMS
+             SET
+            		DOCUMENT_ITEM_TYPE=#{doc.documentItemType},
+            		DOCUMENT_ITEM_NAME=#{doc.documentItemName},
+            		DOCUMENT_ITEM_SOURCE_CODE=#{doc.documentItemSourceCode},
+            		MAX_LENGTH=#{doc.maxLength},
+            		IS_PUBLIC_ITEM=#{doc.isPublicItem},
+            		IS_FROM_TO_ITEM=#{doc.isFromToItem},
+            		NUMBER_FORMAT=#{numformat},
+            		UPDATER=#{userId},
+            		UPDATE_DT=GETDATE()
+            WHERE
+            		DOCUMENT_ITEM_CODE=#{doc.documentItemCode}
+      </update>
+
+     <!--  删除文档数据项（修改的情况下） -->
+     <delete  id="deleteDoc" >
+              DELETE
+              		FROM
+              DOCUMENT_ITEMS
+              		WHERE
+              DOCUMENT_ITEM_CODE = #{documentItemCode} AND DOCUMENT_ITEM_NO='1'
+     </delete>
+
+
+     <select id="getDbName"  resultType="DocItemsDto">
+              SELECT
+              		DB_ITEM_NAME
+              FROM
+              		DOCUMENT_ITEMS
+              WHERE
+              		IS_FIX_ITEM = '0'
+     </select>
+
+    <!--  修改时插入数据 -->
+    <insert  id="insertDb" parameterType="DocItemsDto">
+              INSERT
+              		INTO
+              DOCUMENT_ITEMS
+              		(DOCUMENT_ITEM_CODE,DOCUMENT_ITEM_NO,DOCUMENT_ITEM_TYPE,DOCUMENT_ITEM_NAME,DOCUMENT_ITEM_SOURCE_CODE,MAX_LENGTH,IS_PUBLIC_ITEM,IS_FIX_ITEM,IS_BLANK_ITEM,DB_ITEM_NAME,IS_FROM_TO_ITEM,CREATOR,CREATE_DT)
+			  VALUES
+			  		(#{doc.documentItemCode},'1',#{doc.documentItemType},#{doc.documentItemName},#{doc.documentItemSourceCode},#{doc.maxLength},#{doc.isPublicItem},'0','0',#{DBName},#{doc.isFromToItem},#{userId},GETDATE())
+    </insert>
+
+    <!-- 查询最大数据项编号 -->
+    <select id="maxDocNo"  resultType="DocItemsDto">
+              SELECT
+              		MAX(DOCUMENT_ITEM_CODE )  DOCUMENT_ITEM_CODE
+              FROM
+              		DOCUMENT_ITEMS
+              WHERE
+              		IS_FIX_ITEM = '0'
+    </select>
+
+    <!-- 新增数据项信息（当fromto项目未选中时） -->
+    <insert id="insertAll"  parameterType="DocItemsDto">
+             INSERT
+             		INTO
+             DOCUMENT_ITEMS
+             		(DOCUMENT_ITEM_CODE,DOCUMENT_ITEM_NO,DOCUMENT_ITEM_TYPE,DOCUMENT_ITEM_NAME,DOCUMENT_ITEM_SOURCE_CODE,MAX_LENGTH,IS_PUBLIC_ITEM,IS_FIX_ITEM,IS_BLANK_ITEM,DB_ITEM_NAME,IS_FROM_TO_ITEM,NUMBER_FORMAT,CREATOR,CREATE_DT)
+             VALUES
+             		(#{Code},'0',#{doc.documentItemType},#{doc.documentItemName},#{doc.documentItemSourceCode},#{doc.maxLength},#{doc.isPublicItem},'0','0',#{DBName},#{doc.isFromToItem},#{numformat},#{userId},GETDATE())
+    </insert>
+
+	 <!-- 新增数据项信息（当fromto项目选中时） -->
+     <insert id="insertAlls"  parameterType="DocItemsDto">
+             INSERT
+             		INTO
+             DOCUMENT_ITEMS
+             		(DOCUMENT_ITEM_CODE,DOCUMENT_ITEM_NO,DOCUMENT_ITEM_TYPE,DOCUMENT_ITEM_NAME,DOCUMENT_ITEM_SOURCE_CODE,MAX_LENGTH,IS_PUBLIC_ITEM,IS_FIX_ITEM,IS_BLANK_ITEM,DB_ITEM_NAME,IS_FROM_TO_ITEM,NUMBER_FORMAT,CREATOR,CREATE_DT)
+             VALUES
+             		(#{Code},'1',#{doc.documentItemType},#{doc.documentItemName},#{doc.documentItemSourceCode},#{doc.maxLength},#{doc.isPublicItem},'0','0',#{DBName},#{doc.isFromToItem},#{numformat},#{userId},GETDATE())
+    </insert>
+
+<!--//====================================新建修改文档业务区域结束===========================================  -->
+
+<!--//====================================新建修改查询数据源业务区域===========================================  -->
+	<!-- 查询数据源列表 -->
+	<select id="getInitDataSrcList" resultType="com.dm.dto.DocItemDataSourceCodeDto" parameterType="com.dm.dto.DocItemDataSourceCodeDto">
+		SELECT
+			c.DOCUMENT_ITEM_SOURCE_CODE,
+			c.DOCUMENT_ITEM_SOURCE_NAME,
+			LEFT (c.detail, LEN(c.detail) - 1) AS detail
+		FROM
+		(
+			SELECT
+				b.DOCUMENT_ITEM_SOURCE_CODE,
+				b.DOCUMENT_ITEM_SOURCE_NAME,
+				(
+					SELECT
+						a.ITEM_NAME + ','
+					FROM
+						DOCUMENT_ITEM_DATA_SOURCE_CODE a
+					WHERE
+						a.DOCUMENT_ITEM_SOURCE_CODE = b.DOCUMENT_ITEM_SOURCE_CODE
+					ORDER BY
+						a.ITEM_SORT_NO FOR XML PATH ('')
+				) AS detail
+			FROM
+				DOCUMENT_ITEM_DATA_SOURCE_CODE b
+			GROUP BY
+				b.DOCUMENT_ITEM_SOURCE_CODE,
+				b.DOCUMENT_ITEM_SOURCE_NAME
+		) c
+	</select>
+	<!-- 查询数据源列表 -->
+	<select id="getDataSrcList" resultType="com.dm.dto.DocItemDataSourceCodeDto" >
+		 SELECT *
+	    FROM
+	    (
+		SELECT
+		 ROW_NUMBER() OVER (ORDER BY c.DOCUMENT_ITEM_SOURCE_CODE ASC) AS row,
+			c.DOCUMENT_ITEM_SOURCE_CODE,
+			c.DOCUMENT_ITEM_SOURCE_NAME,
+			LEFT (c.detail, LEN(c.detail) - 1) AS detail
+		FROM
+		(
+			SELECT
+				b.DOCUMENT_ITEM_SOURCE_CODE,
+				b.DOCUMENT_ITEM_SOURCE_NAME,
+				(
+					SELECT
+						a.ITEM_NAME + ','
+					FROM
+						DOCUMENT_ITEM_DATA_SOURCE_CODE a
+					WHERE
+						a.DOCUMENT_ITEM_SOURCE_CODE = b.DOCUMENT_ITEM_SOURCE_CODE
+					ORDER BY
+						a.ITEM_SORT_NO FOR XML PATH ('')
+				) AS detail
+			FROM
+				DOCUMENT_ITEM_DATA_SOURCE_CODE b
+			WHERE 1=1
+			AND
+				(b.DOCUMENT_ITEM_SOURCE_NAME LIKE #{documentItemSourceName}
+				or #{documentItemSourceName} = '')
+			GROUP BY
+				b.DOCUMENT_ITEM_SOURCE_CODE,
+				b.DOCUMENT_ITEM_SOURCE_NAME
+		) c
+		) a
+		WHERE
+			row >= #{start} + 1
+		AND row <![CDATA[<=]]> #{start} + #{length}
+	</select>
+	<!-- 获取文档项目数据源总共记录数 -->
+	<select id="getDataSrcListCount" resultType="int" >
+		 SELECT
+		 COUNT(DISTINCT a.DOCUMENT_ITEM_SOURCE_CODE)
+	    FROM
+	    (
+		SELECT
+			c.DOCUMENT_ITEM_SOURCE_CODE,
+			LEFT (c.detail, LEN(c.detail) - 1) AS detail
+		FROM
+		(
+			SELECT
+				b.DOCUMENT_ITEM_SOURCE_CODE,
+				b.DOCUMENT_ITEM_SOURCE_NAME,
+				(
+					SELECT
+						a.ITEM_NAME + ','
+					FROM
+						DOCUMENT_ITEM_DATA_SOURCE_CODE a
+					WHERE
+						a.DOCUMENT_ITEM_SOURCE_CODE = b.DOCUMENT_ITEM_SOURCE_CODE
+					ORDER BY
+						a.ITEM_SORT_NO FOR XML PATH ('')
+				) AS detail
+			FROM
+				DOCUMENT_ITEM_DATA_SOURCE_CODE b
+			WHERE 1=1
+			AND
+				(b.DOCUMENT_ITEM_SOURCE_NAME LIKE #{documentItemSourceName}
+				or #{documentItemSourceName} = '')
+			GROUP BY
+				b.DOCUMENT_ITEM_SOURCE_CODE,
+				b.DOCUMENT_ITEM_SOURCE_NAME
+		) c
+		) a
+	</select>
+	<!-- 查询单个数据源信息 -->
+	<select id="getDetailDataSrc" resultType="com.dm.dto.DocItemDataSourceCodeDto" parameterType="com.dm.dto.DocItemDataSourceCodeDto">
+		SELECT
+			c.DOCUMENT_ITEM_SOURCE_NAME,
+			LEFT (c.detail, LEN(c.detail) - 1) AS detail,
+			LEFT (c.otherDetail, LEN(c.otherDetail) - 1) AS otherDetail,
+			LEFT (c.valDetail, LEN(c.valDetail) - 1) AS valDetail
+		FROM
+		(
+			SELECT
+				b.DOCUMENT_ITEM_SOURCE_NAME,
+				(
+					SELECT
+						a.ITEM_NAME + ','
+					FROM
+						DOCUMENT_ITEM_DATA_SOURCE_CODE a
+					WHERE
+						a.DOCUMENT_ITEM_SOURCE_CODE = #{documentItemSourceCode}
+					ORDER BY
+						a.ITEM_SORT_NO FOR XML PATH ('')
+				) AS detail,
+				(
+					SELECT
+						a.ITEM_OTHER_VALUE + ','
+					FROM
+						DOCUMENT_ITEM_DATA_SOURCE_CODE a
+					WHERE
+						a.DOCUMENT_ITEM_SOURCE_CODE = #{documentItemSourceCode}
+					ORDER BY
+						a.ITEM_SORT_NO FOR XML PATH ('')
+				) AS otherDetail,
+				(
+					SELECT
+						a.ITEM_VALUE + ','
+					FROM
+						DOCUMENT_ITEM_DATA_SOURCE_CODE a
+					WHERE
+						a.DOCUMENT_ITEM_SOURCE_CODE = #{documentItemSourceCode}
+					ORDER BY
+						a.ITEM_SORT_NO FOR XML PATH ('')
+				) AS valDetail
+			FROM
+				DOCUMENT_ITEM_DATA_SOURCE_CODE b
+			WHERE
+				b.DOCUMENT_ITEM_SOURCE_CODE = #{documentItemSourceCode}
+			GROUP BY
+				b.DOCUMENT_ITEM_SOURCE_NAME
+		) c
+	</select>
+
+	<!-- 删除数据源列表数据 -->
+	<delete id="DataSrcListDelete" parameterType="com.dm.dto.DocItemDataSourceCodeDto">
+		DELETE FROM
+				DOCUMENT_ITEM_DATA_SOURCE_CODE
+		WHERE
+				DOCUMENT_ITEM_SOURCE_CODE = #{documentItemSourceCode}
+	</delete>
+
+	<!-- 查询文档录入表单是否使用指定数据项编号 -->
+	<select id = "DataSrcListSelect" resultType="com.dm.dto.DocFormItemDto" parameterType="com.dm.dto.DocFormItemDto">
+		SELECT
+			did.DOCUMENT_ITEM_SOURCE_NAME,
+			ddi.DOCUMENT_ITEM_CODE
+		FROM
+			DOCUMENT_ITEM_DATA_SOURCE_CODE did,DOCUMENT_DETAIL_ITEM_SETTING ddi
+		WHERE
+			ddi.DOCUMENT_ITEM_CODE = #{documentItemCode}
+		AND did.DOCUMENT_ITEM_SOURCE_CODE = 'DATA_SOURCE_000001'
+		AND did.ITEM_VALUE = ddi.DOCUMENT_TYPE
+	</select>
+
+	<!-- 查询所有数据源编号 -->
+	<select id="getDocumentItemSourceCode" resultType="com.dm.dto.DocItemDataSourceCodeDto">
+		SELECT
+				DOCUMENT_ITEM_SOURCE_CODE
+		FROM
+				DOCUMENT_ITEM_DATA_SOURCE_CODE
+	</select>
+
+	<!-- 查询同一数据源编号下所有数据源条目序号 -->
+	<select id="getDocumentItemSourceNo" resultType="com.dm.dto.DocItemDataSourceCodeDto" parameterType="com.dm.dto.DocItemDataSourceCodeDto">
+		SELECT
+				DOCUMENT_ITEM_SOURCE_NO
+		FROM
+				DOCUMENT_ITEM_DATA_SOURCE_CODE
+		WHERE
+				DOCUMENT_ITEM_SOURCE_CODE = #{documentItemSourceCode}
+	</select>
+
+
+	<!-- 更新数据源 -->
+	<update id="updateDataSrc" parameterType="com.dm.dto.DocItemDataSourceCodeDto">
+		UPDATE
+				DOCUMENT_ITEM_DATA_SOURCE_CODE
+		SET
+				ITEM_NAME = #{ddsc.itemName},
+				ITEM_SORT_NO = #{ddsc.itemSortNo},
+				ITEM_OTHER_VALUE = #{ddsc.itemOtherValue}
+		WHERE
+				DOCUMENT_ITEM_SOURCE_CODE = #{ddsc.documentItemSourceCode}
+		AND
+				ITEM_VALUE = #{ddsc.itemValue}
+	</update>
+
+	<!-- 添加条目 -->
+	<insert id="insertDataSrc" parameterType="com.dm.dto.DocItemDataSourceCodeDto">
+		INSERT INTO DOCUMENT_ITEM_DATA_SOURCE_CODE
+					(
+						DOCUMENT_ITEM_SOURCE_CODE,
+						DOCUMENT_ITEM_SOURCE_NAME,
+						DOCUMENT_ITEM_SOURCE_NO,
+						ITEM_VALUE,
+						ITEM_NAME,
+						ITEM_SORT_NO,
+						ITEM_OTHER_VALUE
+					)
+		VALUES
+		<foreach collection="list" index="index" item="item" open="" separator="," close="">
+		(
+					#{item.documentItemSourceCode},
+					#{item.documentItemSourceName},
+					#{item.documentItemSourceNo},
+					#{item.itemValue},
+					#{item.itemName},
+					#{item.itemSortNo},
+					#{item.itemOtherValue}
+				)
+		</foreach>
+	</insert>
+
+	<!-- 查询数据项是否使用此数据源 -->
+	<select id="getItems" parameterType="com.dm.dto.DocItemDataSourceCodeDto" resultType="DocItemsEntity">
+		SELECT
+				DOCUMENT_ITEM_CODE,
+				IS_FIX_ITEM,
+				DB_ITEM_NAME
+		FROM
+				DOCUMENT_ITEMS
+		WHERE
+				DOCUMENT_ITEM_SOURCE_CODE = #{documentItemSourceCode}
+	</select>
+
+	<!-- 删除数据源条目 -->
+	<delete id="deleteItem" parameterType="com.dm.dto.DocItemDataSourceCodeDto">
+		DELETE FROM
+				DOCUMENT_ITEM_DATA_SOURCE_CODE
+		WHERE
+				DOCUMENT_ITEM_SOURCE_CODE = #{documentItemSourceCode}
+		AND
+				ITEM_VALUE = #{itemVal}
+	</delete>
+
+	<!-- 查询文档管理表 -->
+	<select id="getDetailInfo" resultType="com.dm.entity.DocDetailInfoEntity">
+		SELECT
+		<foreach collection="list" index="index" item="item" open="" separator="," close="">
+				${item.dbItemName}
+		</foreach>
+		FROM
+				DOCUMENT_DETAIL_CUSTOME_INFO
+	</select>
+
+	<!-- 查询文档自定义数据项表 -->
+	<select id="getDetailCustomInfo" resultType="com.dm.entity.DocDetailCustomInfoEntity">
+		SELECT
+		<foreach collection="list" index="index" item="item" open="" separator="," close="">
+				${item.dbItemName}
+		</foreach>
+		FROM
+				DOCUMENT_DETAIL_CUSTOME_INFO
+	</select>
+<!--//====================================新建修改查询数据源业务区域结束===========================================  -->
+
+</mapper>

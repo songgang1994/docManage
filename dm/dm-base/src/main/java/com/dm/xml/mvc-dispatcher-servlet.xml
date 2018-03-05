@@ -1,0 +1,93 @@
+<beans xmlns="http://www.springframework.org/schema/beans"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:mvc="http://www.springframework.org/schema/mvc"
+    xmlns:context="http://www.springframework.org/schema/context"
+    xmlns:aop="http://www.springframework.org/schema/aop" xmlns:tx="http://www.springframework.org/schema/tx"
+    xsi:schemaLocation="http://www.springframework.org/schema/beans
+        http://www.springframework.org/schema/beans/spring-beans-3.2.xsd
+        http://www.springframework.org/schema/mvc
+        http://www.springframework.org/schema/mvc/spring-mvc-3.2.xsd
+        http://www.springframework.org/schema/context
+        http://www.springframework.org/schema/context/spring-context-3.2.xsd
+        http://www.springframework.org/schema/aop
+        http://www.springframework.org/schema/aop/spring-aop-3.2.xsd
+        http://www.springframework.org/schema/tx
+        http://www.springframework.org/schema/tx/spring-tx-3.2.xsd ">
+
+    <!-- 1.开启SpringMVC注解模式 -->
+    <!-- 简化配置：
+        (1)自动注册DefaultAnootationHandlerMapping,AnotationMethodHandlerAdapter
+        (2)提供一些列：数据绑定，数字和日期的format @NumberFormat, @DateTimeFormat, xml,json默认读写支持
+    -->
+    <mvc:annotation-driven>
+    <mvc:message-converters register-defaults="true">
+        <!-- 避免IE执行AJAX时,返回JSON出现下载文件 -->
+        <bean id="fastJsonHttpMessageConverter" class="com.alibaba.fastjson.support.spring.FastJsonHttpMessageConverter">
+            <property name="supportedMediaTypes">
+                <list>
+                    <value>application/json;charset=UTF-8</value>
+                </list>
+            </property>
+        </bean>
+    </mvc:message-converters>
+</mvc:annotation-driven>
+
+    <!-- 2.静态资源默认servlet配置
+        (1)加入对静态资源的处理：js,gif,png
+        (2)允许使用"/"做整体映射
+     -->
+    <mvc:default-servlet-handler/>
+
+    <!-- 3.配置jsp 显示ViewResolver -->
+     <bean class="org.springframework.web.servlet.view.InternalResourceViewResolver">
+        <property name="viewClass" value="org.springframework.web.servlet.view.JstlView" />
+        <property name="prefix" value="/WEB-INF/jsp/" />
+        <property name="suffix" value=".jsp" />
+     </bean>
+
+    <!-- 4.扫描web相关的bean -->
+    <context:component-scan base-package="com.dm.ctrl.*" />
+
+	<!-- 5.拦截器 -->
+    <mvc:interceptors>
+    <!-- 使用bean定义一个Interceptor，直接定义在mvc:interceptors根下面的Interceptor将拦截所有的请求 -->
+    	<bean class="com.dm.incept.BaseIncept"/>
+
+    	<bean class="org.springframework.web.servlet.i18n.LocaleChangeInterceptor">
+        	<property name="paramName" value="lang"/>
+    	</bean>
+
+    <!-- 定义在mvc:interceptor下面的表示是对特定的请求才进行拦截的 -->
+    <!-- <mvc:interceptor>
+        <mvc:mapping path="/test/number.do"/>
+        <bean class="com.host.app.web.interceptor.LoginInterceptor"/>
+    </mvc:interceptor>-->
+
+  </mvc:interceptors>
+
+   <!-- 6.资源国际化设置 -->
+	<bean id="localeResolver" class="org.springframework.web.servlet.i18n.SessionLocaleResolver">
+    	<property name="defaultLocale" value="cn"/>
+  	</bean>
+    <bean class="org.springframework.context.support.ReloadableResourceBundleMessageSource" id="messageSource">
+        <property name="basename" value="messages"></property>
+        <property name="defaultEncoding" value="UTF-8"></property>
+        <property name="cacheSeconds" value="3000" />
+    </bean>
+
+    <bean id="exceptionHandler" class="com.dm.exception.ExceptionHandler"/>
+
+    <!-- 配置TOMCAT启动时的处理 -->
+    <bean id="initCfgListener" class="com.dm.listener.InitCfgListener"/>
+
+    <!--<bean id="jasperReportResolver" class="org.springframework.web.servlet.view.XmlViewResolver">
+       <property name="order" value="0"></property>
+       <property name="location" value="/WEB-INF/jasper-defs.xml"></property>
+    </bean>-->
+
+    <!-- SpringMVC上传文件时，需要配置MultipartResolver处理器 -->
+    <bean id="multipartResolver" class="org.springframework.web.multipart.commons.CommonsMultipartResolver">
+        <property name="defaultEncoding" value="UTF-8" />
+        <property name="uploadTempDir" value="upload/images" />  <!-- 临时目录 -->
+    </bean>
+
+</beans>

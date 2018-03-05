@@ -1,0 +1,131 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+    PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+    "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.dm.dao.UserDao">
+	<!-- 获取用户信息 -->
+	<select id="getUser" resultMap="UserMap">
+		SELECT us.USER_ID,
+					 us.USER_TYPE,
+					 us.USER_NAME,
+					 us.EMAIL,
+					 us.VERSION,
+					 dep.DEPT_ID,
+					 dep.LEADER_FLG,
+					 re.ROLE_ID
+		FROM
+			SYS_USER us LEFT JOIN SYS_USER_DEPT dep
+			ON us.USER_ID = dep.USER_ID
+			LEFT JOIN USER_ROLE_RELATION re
+			ON us.USER_ID = re.USER_ID
+		WHERE
+			us.USER_CODE=#{userCode}
+		AND
+			us.DELETE_FLG = '0'
+	</select>
+	<resultMap id="UserMap" type="LoginDto">
+   		<id column="USER_ID" property="userId" jdbcType="VARCHAR" />
+		<result column="USER_TYPE" property="userType" jdbcType="VARCHAR" />
+		<result column="USER_NAME" property="userName" jdbcType="VARCHAR" />
+		<result column="EMAIL" property="email" jdbcType="VARCHAR" />
+		<result column="VERSION" property="version" jdbcType="VARCHAR" />
+		<collection property="userDept" ofType="UserDeptEntity">
+	   	<id column="DEPT_ID" property="deptId" jdbcType="VARCHAR" />
+		<result column="LEADER_FLG" property="leaderFlg" jdbcType="VARCHAR" />
+        </collection>
+        <collection property="roleIds" ofType="int">
+			<result column="ROLE_ID" />
+        </collection>
+	</resultMap>
+
+	<resultMap id="menuItemMap" type="MenuEntity">
+   		<id column="MENU_ID" property="menuId" jdbcType="VARCHAR" />
+		<result column="TEXT" property="text" jdbcType="VARCHAR" />
+		<result column="TITLE" property="title" jdbcType="VARCHAR" />
+		<result column="URL" property="url" jdbcType="VARCHAR" />
+		<collection property="children" ofType="com.dm.entity.MenuEntity">
+	   	<id column="MENU_ID1" property="menuId" jdbcType="VARCHAR" />
+		<result column="TEXT1" property="text" jdbcType="VARCHAR" />
+		<result column="TITLE1" property="title" jdbcType="VARCHAR" />
+		<result column="URL1" property="url" jdbcType="VARCHAR" />
+        </collection>
+	</resultMap>
+	<!-- 获取所有菜单项 -->
+	<select id="getMenuItemList" resultMap="menuItemMap">
+		SELECT
+			m.MENU_ID,
+			m.TEXT,
+			m.TITLE,
+			m.ICON,
+			m.URL,
+			m.SORT_NO,
+			sys.MENU_ID AS MENU_ID1,
+			sys.TEXT AS TEXT1,
+			sys.TITLE AS TITLE1,
+			sys.ICON AS ICON1,
+			sys.URL AS URL1,
+			sys.SORT_NO AS SORT_NO1
+		FROM 	(SELECT
+							me.*,
+							sa.URL
+					FROM
+							ROLE_ACTION_RELATION re LEFT JOIN SYS_ACTION sa
+							ON re.ACTION_ID = sa.ACTION_ID
+	  						LEFT JOIN SYS_MENU me
+							ON sa.MENU_ID = me.MENU_ID
+					WHERE
+							re.ROLE_ID IN
+							<foreach collection="roleIds" item="roleId" index="index"
+								open="(" close=")" separator=",">
+			 					#{roleId}
+							</foreach>
+					AND
+						sa.ACTION_TYPE ='1') m LEFT JOIN 	(SELECT
+																						me.*,
+																						sa.URL
+																				 FROM
+																						ROLE_ACTION_RELATION re LEFT JOIN SYS_ACTION sa
+																						ON re.ACTION_ID = sa.ACTION_ID
+	  																					LEFT JOIN SYS_MENU me
+																						ON sa.MENU_ID = me.MENU_ID
+																				 WHERE
+																						re.ROLE_ID IN
+																						<foreach collection="roleIds" item="roleId" index="index"
+																								open="(" close=")" separator=",">
+			 																				#{roleId}
+																						</foreach>
+																				 AND
+																						sa.ACTION_TYPE ='1') sys
+					ON m.MENU_ID = sys.PARENT
+		WHERE
+			m.PARENT IS NULL
+		 ORDER BY
+	  		m.SORT_NO,
+	  		SORT_NO1
+	</select>
+	<!-- 获取权限action -->
+	<select id="getSysActions" resultType="string">
+		SELECT
+			sa.ELEMENT_ID
+		FROM
+			ROLE_ACTION_RELATION re LEFT JOIN SYS_ACTION sa
+			ON re.ACTION_ID = sa.ACTION_ID
+		WHERE
+			re.ROLE_ID IN
+				<foreach collection="roleIds" item="roleId" index="index"
+							open="(" close=")" separator=",">
+			 		#{roleId}
+				</foreach>
+		AND
+			sa.ACTION_TYPE <![CDATA[<>]]> '1'
+	</select>
+	<!-- 获取所有按钮action -->
+	<select id="getAllActions" resultType="string">
+		SELECT
+			ELEMENT_ID
+		FROM
+			SYS_ACTION
+		WHERE
+			ACTION_TYPE <![CDATA[<>]]> '1'
+	</select>
+</mapper>

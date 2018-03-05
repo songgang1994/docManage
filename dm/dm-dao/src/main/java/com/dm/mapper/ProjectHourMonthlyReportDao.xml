@@ -1,0 +1,152 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+    PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+    "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+    <mapper namespace="com.dm.dao.ProjectHourMonthlyReportDao">
+    <!-- 获取课题人工统计月度报表数据 -->
+    <select id="getProjectHourMonthlyList" resultMap="projectListResultMap">
+		WITH T_WORKING_TIMES_DEPARTMENT AS (
+				SELECT
+					su.PROJECT_NO,
+					su.FY_YEAR,
+					su.PROJECT_NAME,
+					su.PROJECT_GOAL,
+					su.PROJECT_TYPE,
+					su.PLAN_TIMES,
+					su.CONTENTS,
+					wo.USER_ID,
+					wo.DATETM,
+					wo.WORKING_TIMES,
+					dep.DEPT_ID,
+					COUNT(wo.USER_ID) OVER(PARTITION BY wo.PROJECT_NO, wo.FY_YEAR, wo.USER_ID, wo.DATETM) AS deptCount
+				FROM
+					M_SUBJECT su,
+					T_WORKING_TIMES wo,
+					M_SUBJECT_DEP dep,
+					SYS_USER_DEPT sys
+				WHERE
+					wo.PROJECT_NO = su.PROJECT_NO
+					AND wo.FY_YEAR = su.FY_YEAR
+					AND wo.USER_ID = sys.USER_ID
+					AND sys.DEPT_ID = dep.DEPT_ID
+					AND dep.PROJECT_NO = wo.PROJECT_NO
+					AND dep.FY_YEAR = wo.FY_YEAR
+					AND SUBSTRING(CONVERT(VARCHAR(30),DATETM,120),1,7) = #{projectInfo.projectDate}
+					<if test="projectInfo.deptIdList !=null  and projectInfo.deptIdList !=''">
+					AND	dep.DEPT_ID IN
+						<foreach collection="projectInfo.deptIdList" item="deptId" index="index"
+						open="(" close=")" separator=",">
+						 #{deptId}
+						</foreach>
+					</if>
+					<if test="projectInfo.projectName!=null  and  projectInfo.projectName!=''">
+					AND	su.PROJECT_NAME LIKE '%${projectInfo.projectName}%'
+					</if>
+		),
+		T_WORKING_TIMES_DEPARTMENT_AVG AS (
+			SELECT
+				A.*,
+				CAST(ROUND(A.WORKING_TIMES / A.deptCount, 2) AS NUMERIC(10, 2)) AS times,
+				pa.DISP_NAME,
+				C.DEPT_NAME
+			FROM
+				T_WORKING_TIMES_DEPARTMENT A
+				LEFT JOIN PARM_MST pa ON
+					pa.TYPE1 = #{type1}
+					AND pa.VALUE = A.PROJECT_TYPE,
+				M_DEPARTMENT_INFO 	C
+			WHERE
+				A.DEPT_ID = C.DEPT_ID
+		)
+		SELECT
+			two.DEPT_ID,
+			two.DEPT_NAME,
+			two.DISP_NAME,
+			two.PROJECT_NAME,
+			two.CONTENTS,
+			two.PROJECT_NO,
+			two.PLAN_TIMES,
+			SUM(two.times) AS timesTotal,
+			le.LEGAL_ID,
+			le.PERCENTAGE,
+			par.DISP_NAME AS DISPNAME
+		FROM
+			T_WORKING_TIMES_DEPARTMENT_AVG two
+			LEFT JOIN M_SUBJECT_LEGAL le
+			ON two.PROJECT_NO = le.PROJECT_NO
+			LEFT JOIN (SELECT
+										VALUE,
+										DISP_NAME
+									FROM
+											PARM_MST
+									WHERE
+											TYPE1=#{type2}
+					)	 par
+					ON le.LEGAL_ID = par.VALUE
+		GROUP BY
+			two.DEPT_ID,
+			two.DEPT_NAME,
+			two.DISP_NAME,
+			two.PROJECT_NAME,
+			two.CONTENTS,
+			two.PROJECT_NO,
+			two.PLAN_TIMES,
+			le.LEGAL_ID,
+			le.PERCENTAGE,
+			par.DISP_NAME
+		ORDER BY
+			two.DEPT_ID
+	</select>
+	<resultMap id = "projectListResultMap"  type="ProjectInfoDto">
+		<id property="projectNo" column="PROJECT_NO" javaType="string" jdbcType="VARCHAR" />
+		<id property="deptId" column="DEPT_ID" javaType="string" jdbcType="VARCHAR" />
+		<result property="projectNo" column="PROJECT_NO" javaType="string"
+			jdbcType="VARCHAR" />
+		<result property="projectName" column="PROJECT_NAME" javaType="string"
+			jdbcType="VARCHAR" />
+		<result property="dispName" column="DISP_NAME" javaType="string"
+			jdbcType="VARCHAR" />
+		<result property="planTimes" column="PLAN_TIMES" />
+		<result property="contents" column="CONTENTS" javaType="string"
+			jdbcType="VARCHAR" />
+		<result property="timesTotal" column="timesTotal" />
+		<result property="deptId"  column="DEPT_ID" javaType="string" jdbcType="VARCHAR" />
+		<result property="deptName"  column="DEPT_NAME" javaType="string" jdbcType="VARCHAR" />
+		<collection property="subjectLegal" ofType="SubjectLegalDto">
+			<id property="legalId" column="LEGAL_ID" javaType="int"
+				jdbcType="INTEGER" />
+			<result property="legalId" column="LEGAL_ID" javaType="int"
+				jdbcType="INTEGER" />
+			<result property="dispName" column="DISPNAME" javaType="string"
+				jdbcType="VARCHAR" />
+			<result property="percentage" column="PERCENTAGE" />
+		</collection>
+	</resultMap>
+	<!--获取法人信息  -->
+	<select id="getDeptTimeTotal" resultType="departManageInfoDto">
+		SELECT
+			SUM(t.Total) AS timesTotal,
+			sys.DEPT_ID
+		FROM
+				SYS_USER_DEPT sys LEFT JOIN (
+																SELECT
+												  					 SUM(WORKING_TIMES) AS Total,
+												    				 USER_ID
+																 FROM
+																 	 T_WORKING_TIMES
+										 						 WHERE
+										 						 	 SUBSTRING(CONVERT(VARCHAR(30),DATETM,120),1,7)=#{projectDate}
+										 						GROUP BY
+											        				 USER_ID
+																) t
+		       ON sys.USER_ID = t.USER_ID
+			   WHERE
+					 sys.DEPT_ID IN
+					 			<foreach collection="deptIdList" item="deptId" index="index"
+										open="(" close=")" separator=",">
+									 #{deptId}
+								</foreach>
+			  GROUP BY
+					 sys.DEPT_ID
+	</select>
+    </mapper>

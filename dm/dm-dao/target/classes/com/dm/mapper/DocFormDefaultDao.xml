@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+    PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+    "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.dm.dao.DocFormDefaultDao">
+	<!-- -->
+	<select id="getAllDocItems" resultType="DocItemsEntity">
+		SELECT * FROM DOCUMENT_ITEMS
+		ORDER BY DOCUMENT_ITEM_CODE
+	</select>
+	<select id="getSearchItems" resultType="SearchItemsInfoDto">
+		SELECT dsis.*,dit.DOCUMENT_ITEM_NAME,dit.DOCUMENT_ITEM_TYPE,dit.IS_FROM_TO_ITEM,dit.NUMBER_FORMAT,dit.MAX_LENGTH
+		 FROM DOCUMENT_SEARCH_ITEM_SETTING dsis
+		LEFT JOIN DOCUMENT_ITEMS dit ON dsis.DOCUMENT_ITEM_CODE = dit.DOCUMENT_ITEM_CODE AND dsis.DOCUMENT_ITEM_NO = dit.DOCUMENT_ITEM_NO
+		WHERE USER_ID = #{userId}
+		ORDER BY LAYOUT_ROW,LAYOUT_COL
+	</select>
+	<!--  -->
+	<select id="isCustomDefine" resultType="String">
+		SELECT USER_ID FROM DOCUMENT_SEARCH_ITEM_SETTING WHERE USER_ID = #{userId}
+	</select>
+	<!--  -->
+	<select id="getParams" resultType="ParmMstEntity">
+		SELECT [VALUE],DISP_NAME
+		FROM PARM_MST
+		WHERE TYPE1 = 'MATCHING_TYPE'
+	</select>
+	<!--  -->
+	<select id="getDocSource" resultType="DocItemDataSourceCodeEntity">
+		SELECT DOCUMENT_ITEM_DATA_SOURCE_CODE.*
+		FROM DOCUMENT_ITEM_DATA_SOURCE_CODE
+		LEFT JOIN DOCUMENT_ITEMS ON DOCUMENT_ITEMS.DOCUMENT_ITEM_SOURCE_CODE = DOCUMENT_ITEM_DATA_SOURCE_CODE.DOCUMENT_ITEM_SOURCE_CODE
+		WHERE DOCUMENT_ITEMS.DOCUMENT_ITEM_CODE = #{docCode}
+		AND DOCUMENT_ITEMS.DOCUMENT_ITEM_NO = #{docNo}
+	</select>
+	<!--  -->
+	<select id="getDocType" resultType="DocItemsEntity">
+		SELECT * FROM DOCUMENT_ITEMS
+		WHERE DOCUMENT_ITEM_CODE = #{docType}
+		AND DOCUMENT_ITEM_NO = 0
+	</select>
+	<!--  -->
+	<delete id="delDocSearchItemSetting">
+		DELETE FROM  DOCUMENT_SEARCH_ITEM_SETTING
+		WHERE USER_ID = #{defaultId}
+	</delete>
+	<!--  -->
+	<insert id="addDocSearchItemSetting">
+		INSERT INTO DOCUMENT_SEARCH_ITEM_SETTING
+		(
+			USER_ID,
+			DOCUMENT_ITEM_CODE,
+			DOCUMENT_ITEM_NO,
+			IS_LIST_ITEM,
+			IS_SEARCH_ITEM,
+			MATCHING,
+			DEFAULT_ITEM_VALUE,
+			LAYOUT_ROW,
+			LAYOUT_COL,
+			CREATOR,
+			CREATE_DT,
+			UPDATER,
+			UPDATE_DT
+		)
+		VALUES
+		<foreach collection="list" index="index" item="item" open="" separator="," close="">
+		(
+			#{item.userId},
+			#{item.documentItemCode},
+			#{item.documentItemNo},
+			#{item.isListItem},
+			#{item.isSearchItem},
+			<choose>
+				<when test="item.matching == '' ">
+					NULL,
+				</when>
+				<otherwise>
+					#{item.matching},
+				</otherwise>
+			</choose>
+			#{item.defaultItemValue},
+			#{item.layoutRow},
+			#{item.layoutCol},
+			#{item.creator},
+			#{item.createDt},
+			#{item.updater},
+			#{item.updateDt}
+		)
+		</foreach>
+	</insert>
+</mapper>

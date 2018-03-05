@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+    PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+    "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.dm.dao.CheckApprovalProgressDao">
+	<!-- 取得所属部门的所有负责人 -->
+	<select id="getLeadersByDeptId" resultType="UserDeptEntity">
+		SELECT USER_ID,DEPT_ID,LEADER_FLG
+		FROM SYS_USER_DEPT
+		WHERE LEADER_FLG = 1
+		<foreach collection="list" index="index" item="item" open=" AND " separator="OR" close="">
+			DEPT_ID = #{item.deptId}
+		</foreach>
+	</select>
+	<!-- 根绝用户id获取用户所属部门 -->
+	<select id="queryDeptListByUserId" resultType="DepartmentInfoEntity">
+		SELECT md.DEPT_ID,DEPT_NAME,PARENT_DEPT_ID FROM SYS_USER_DEPT sud
+		LEFT JOIN M_DEPARTMENT_INFO md ON sud.DEPT_ID = md.DEPT_ID
+		WHERE USER_ID = #{userId}
+		ORDER BY md.DEPT_ID
+	</select>
+	<!-- 取得文档类型的最终审核人 -->
+	<select id="getLastApproveUser" resultType="java.lang.String">
+		SELECT LAST_APPROVE_USER
+		FROM APPROVE_MANAGE
+		WHERE DOCUMENT_ITEM_TYPE = #{docType}
+	</select>
+	<!-- 获取上一级部门信息 -->
+	<select id="getParentDeptByDeptId" resultType="DepartmentInfoEntity">
+		SELECT PARENT_DEPT_ID,DEPT_ID
+		FROM M_DEPARTMENT_INFO
+		WHERE DEPT_ID IN
+		<foreach collection="deptIds" index="index" item="item" open="(" separator="," close=")">
+			 #{item}
+		</foreach>
+	</select>
+	<!-- 获取上一级部门负责人信息 -->
+	<select id="getLeadersByParentDeptId" resultType="UserDeptEntity">
+		SELECT USER_ID,DEPT_ID,LEADER_FLG
+		FROM SYS_USER_DEPT
+		WHERE LEADER_FLG = 1 AND DEPT_ID IN
+		<foreach collection="parentDeptIds" index="index" item="item" open="(" separator="," close=")">
+			 #{item}
+		</foreach>
+	</select>
+</mapper>

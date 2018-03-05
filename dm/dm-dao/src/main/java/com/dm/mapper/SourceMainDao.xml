@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+    PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+    "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.dm.dao.SourceMainDao">
+        <!-- 查询类型 -->
+		<select id="getType" resultType="ParmMstDto">
+				SELECT
+						VALUE,DISP_NAME
+				FROM
+						PARM_MST
+				WHERE
+						TYPE1=#{type1Name}
+		</select>
+
+        <!-- 索引，查询类型名 -->
+		<select id="getDisName" resultType="ParmMstDto">
+				SELECT
+						VALUE,DISP_NAME
+				FROM
+						PARM_MST
+				WHERE
+						TYPE1 = #{type1}
+		</select>
+
+		<!--新追加行数据插入 -->
+		<insert  id="addNew"  parameterType="ParmMstDto">
+				INSERT
+						INTO
+				PARM_MST
+						(TYPE1,TYPE2,[VALUE],DISP_NAME,CREATOR,CREATE_DT)
+				VALUES
+		 		<foreach collection="list" index="index" item="item" open="" separator="," close="">
+						(#{item.type1},'N',#{item.maxNum},#{item.smallType},#{userId},GETDATE())
+				</foreach>
+		</insert>
+
+		<!-- 类型数据更新 -->
+		<update id="updateSource"  parameterType="ParmMstDto">
+				UPDATE
+						PARM_MST
+				SET
+						DISP_NAME =#{par.dispName},UPDATER=#{userId},UPDATE_DT=GETDATE()
+				WHERE
+						TYPE1 = #{par.type1}
+				AND
+						TYPE2 = 'N'
+				AND
+						[VALUE] = #{par.maxNum}
+		</update>
+
+</mapper>

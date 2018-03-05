@@ -1,0 +1,347 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+    PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+    "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.dm.dao.ComDao">
+
+	<!-- 人员检索 -->
+	<select id="getStaffDeptInfoDtos" resultType="StaffDeptInfoDto">
+		SELECT
+			*
+		FROM
+			(
+				SELECT
+					u.USER_ID,
+					u.USER_NAME,
+					ud.DEPT_ID,
+					ud.LEADER_FLG,
+					d.DEPT_NAME,
+					ROW_NUMBER () OVER (ORDER BY u.USER_ID ASC) AS row
+				FROM
+					SYS_USER u
+				INNER JOIN SYS_USER_DEPT ud ON u.USER_ID = ud.USER_ID
+				INNER JOIN M_DEPARTMENT_INFO d ON ud.DEPT_ID = d.DEPT_ID
+				WHERE
+					1=1
+				<if test=" staffId !=null  and  staffId !='' ">
+					AND u.USER_ID LIKE '%${staffId}%'
+				</if>
+				<if test=" staffName !=null  and  staffName !='' ">
+					AND u.USER_NAME LIKE '%${staffName}%'
+				</if>
+				<if test="deptIds != null and  deptIds.length > 0">
+					AND ud.DEPT_ID IN
+					<foreach collection="deptIds" item="deptId" index="index"
+		            	open="(" close=")" separator=",">
+		             	#{deptId}
+		        	</foreach>
+				</if>
+				<if test="leaderFlg =='1'.toString() ">
+					AND ud.LEADER_FLG = '1'
+				</if>
+				AND   u.DELETE_FLG = '0'
+			) A
+		<if test="length != -1">
+			WHERE
+				row <![CDATA[>]]> #{start}
+			AND row <![CDATA[<=]]> #{start} + #{length}
+		</if>
+		ORDER BY
+			USER_ID
+	</select>
+
+	<!-- 人员总数 -->
+	<select id="getStaffDeptInfoDtosCount" resultType="int">
+		SELECT
+			COUNT(u.USER_ID)
+		FROM
+			SYS_USER u
+		INNER JOIN SYS_USER_DEPT ud ON u.USER_ID = ud.USER_ID
+		INNER JOIN M_DEPARTMENT_INFO d ON ud.DEPT_ID = d.DEPT_ID
+		WHERE
+			1=1
+		<if test=" staffId !=null  and  staffId !='' ">
+			AND u.USER_ID LIKE '%${staffId}%'
+		</if>
+		<if test=" staffName !=null  and  staffName !='' ">
+			AND u.USER_NAME LIKE '%${staffName}%'
+		</if>
+		<if test="deptIds != null and  deptIds.length > 0">
+			AND ud.DEPT_ID IN
+			<foreach collection="deptIds" item="deptId" index="index"
+            	open="(" close=")" separator=",">
+             	#{deptId}
+        	</foreach>
+		</if>
+		<if test="leaderFlg =='1'.toString() ">
+			AND ud.LEADER_FLG = '1'
+		</if>
+		AND   u.DELETE_FLG = '0'
+	</select>
+
+	<!-- 法人检索 -->
+	<select id="getLegals" resultType="ParmMstEntity">
+		SELECT
+			*
+		FROM
+			(
+			SELECT
+				[VALUE], DISP_NAME,ROW_NUMBER () OVER (ORDER BY [VALUE] ASC) AS row
+			FROM
+				PARM_MST
+			WHERE
+				TYPE1 = 'LEGAL'
+			<if test=" legalName !=null  and  legalName !='' ">
+				AND DISP_NAME LIKE  '%${legalName}%'
+			</if>
+			) A
+			<if test="length != -1">
+				WHERE
+					row <![CDATA[>]]> #{start}
+				AND row <![CDATA[<=]]> #{start} + #{length}
+			</if>
+		ORDER BY
+			[VALUE]
+	</select>
+
+	<!-- 法人总数 -->
+	<select id="getLegalsCount" resultType="int">
+		SELECT
+			count([VALUE])
+		FROM
+			PARM_MST
+		WHERE
+			TYPE1 = 'LEGAL'
+		<if test=" legalName !=null  and  legalName !='' ">
+			AND DISP_NAME LIKE  '%${legalName}%'
+		</if>
+	</select>
+
+	<!-- 部门检索 -->
+	<select id="getDeparts" resultType="DepartmentInfoEntity">
+		WITH TREE_M_DEPARTMENT_INFO(DEPT_ID, DEPT_NAME,PARENT_DEPT_ID, LEVEL,
+			orderId) AS (
+			SELECT
+			A.DEPT_ID,
+			A.DEPT_NAME,
+			A.PARENT_DEPT_ID,
+			0 AS LEVEL,
+			CAST('0' AS VARCHAR(100)) AS orderId
+			FROM
+			M_DEPARTMENT_INFO A
+			WHERE
+			A.PARENT_DEPT_ID IS NULL
+
+			UNION ALL
+
+			SELECT
+			B.DEPT_ID,
+			B.DEPT_NAME,
+			B.PARENT_DEPT_ID,
+			C.LEVEL + 1 AS LEVEL,
+			CAST(
+			C.orderId + '_' +
+			CAST(ROW_NUMBER() OVER (ORDER BY B.PARENT_DEPT_ID) AS VARCHAR(100))
+			AS VARCHAR(100)
+			) AS orderId
+			FROM
+			M_DEPARTMENT_INFO B,
+			TREE_M_DEPARTMENT_INFO C
+			WHERE
+			B.PARENT_DEPT_ID = C.DEPT_ID
+			)
+		SELECT
+		*
+		FROM
+		(
+			SELECT
+			ROW_NUMBER () OVER (ORDER BY DEPT_ID ASC) AS row,
+			*
+			FROM
+			TREE_M_DEPARTMENT_INFO
+			WHERE
+			1 = 1
+			<if test=" level !=null  and  level !='' ">
+				AND LEVEL = ${level}
+			</if>
+			<if test=" departName !=null  and  departName !='' ">
+				AND DEPT_NAME LIKE '%${departName}%'
+			</if>
+	) A
+	<if test="length != -1">
+		WHERE
+		row <![CDATA[>]]>#{start}
+		AND row <![CDATA[<=]]>
+		#{start} + #{length}
+	</if>
+	ORDER BY
+	DEPT_ID
+</select>
+
+	<!-- 部门总数 -->
+	<select id="getDepartsCount" resultType="int">
+	WITH TREE_M_DEPARTMENT_INFO(DEPT_ID, DEPT_NAME,PARENT_DEPT_ID, LEVEL,
+			orderId) AS (
+			SELECT
+			A.DEPT_ID,
+			A.DEPT_NAME,
+			A.PARENT_DEPT_ID,
+			0 AS LEVEL,
+			CAST('0' AS VARCHAR(100)) AS orderId
+			FROM
+			M_DEPARTMENT_INFO A
+			WHERE
+			A.PARENT_DEPT_ID IS NULL
+
+			UNION ALL
+
+			SELECT
+			B.DEPT_ID,
+			B.DEPT_NAME,
+			B.PARENT_DEPT_ID,
+			C.LEVEL + 1 AS LEVEL,
+			CAST(
+			C.orderId + '_' +
+			CAST(ROW_NUMBER() OVER (ORDER BY B.PARENT_DEPT_ID) AS VARCHAR(100))
+			AS VARCHAR(100)
+			) AS orderId
+			FROM
+			M_DEPARTMENT_INFO B,
+			TREE_M_DEPARTMENT_INFO C
+			WHERE
+			B.PARENT_DEPT_ID = C.DEPT_ID
+			)
+
+			SELECT
+			COUNT(DEPT_ID)
+			FROM
+			TREE_M_DEPARTMENT_INFO
+			WHERE
+			1 = 1
+			<if test=" level !=null  and  level !='' ">
+				AND LEVEL = ${level}
+			</if>
+			<if test=" departName !=null  and  departName !='' ">
+				AND DEPT_NAME LIKE '%${departName}%'
+			</if>
+	</select>
+
+	<!-- 课题检索 -->
+	<select id="getProjectInfoDtos" resultType="ProjectInfoDto">
+		SELECT
+				*
+			FROM
+				(
+				SELECT
+					s.PROJECT_NO, s.FY_YEAR, s.PROJECT_NAME, s.PROJECT_TYPE,
+					m.DISP_NAME,ROW_NUMBER () OVER (ORDER BY s.PROJECT_NO ASC) AS row
+				FROM
+					M_SUBJECT s, PARM_MST m
+				WHERE
+					m.TYPE1 = 'PROJECT_TYPE'
+				AND
+					m.[VALUE] = s.PROJECT_TYPE
+				<if test=" fyYear !=null  and  fyYear !='' ">
+				AND
+					s.FY_YEAR = #{fyYear}
+				</if>
+				<if test=" projectNo !=null  and  projectNo !='' ">
+					AND PROJECT_NO LIKE '%${projectNo}%'
+				</if>
+				<if test="projectName != null and  projectName !='' ">
+					AND PROJECT_NAME LIKE '%${projectName}%'
+				</if>
+				<if test="projectType != null and  projectType !='' ">
+					AND PROJECT_TYPE = #{projectType}
+				</if>
+			) A
+			<if test="length != -1">
+				WHERE
+					row <![CDATA[>]]> #{start}
+				AND row <![CDATA[<=]]> #{start} + #{length}
+			</if>
+			ORDER BY
+				PROJECT_NO
+	</select>
+
+	<!-- 课题总数 -->
+	<select id="getProjectInfoDtosCount" resultType="int">
+		SELECT
+			count(s.PROJECT_NO)
+		FROM
+			M_SUBJECT s, PARM_MST m
+		WHERE
+			m.TYPE1 = 'PROJECT_TYPE'
+		AND
+			m.[VALUE] = s.PROJECT_TYPE
+		<if test=" fyYear !=null  and  fyYear !='' ">
+		AND
+			s.FY_YEAR = #{fyYear}
+		</if>
+		<if test=" projectNo !=null  and  projectNo !='' ">
+			AND PROJECT_NO LIKE '%${projectNo}%'
+		</if>
+		<if test="projectName != null and  projectName !='' ">
+			AND PROJECT_NAME LIKE '%${projectName}%'
+		</if>
+		<if test="projectType != null and  projectType !='' ">
+			AND PROJECT_TYPE = #{projectType}
+		</if>
+	</select>
+
+	<!-- 设备检索 -->
+	<select id="getDeviceInfoDtos" resultType="DeviceInfoDto">
+		SELECT
+			*
+		FROM
+			(SELECT DEVICE_NO,DEVICE_NAME,LOCATION_ID,DISP_NAME,
+			ROW_NUMBER () OVER (ORDER BY DEVICE_NO ASC) AS row
+		FROM
+			M_DEVICE_INFO mdi,PARM_MST pm
+		WHERE
+			pm.TYPE1 = 'LOCATION'
+			AND pm.VALUE = mdi.LOCATION_ID
+			<if test="deviceNo != null and  deviceNo !='' ">
+			AND DEVICE_NO LIKE '%${deviceNo}%'
+		</if>
+		<if test="deviceName !=null and deviceName != ''">
+			AND DEVICE_NAME LIKE '%${deviceName}%'
+		</if>)a
+		<if test="length != -1">
+			WHERE
+				row <![CDATA[>]]> #{start}
+			AND
+				row <![CDATA[<=]]> #{start} + #{length}
+		</if>
+
+		ORDER BY
+			DEVICE_NO
+	</select>
+
+	<!-- 设备总数 -->
+	<select id="getDeviceInfoDtosCount" resultType="int">
+		SELECT
+			COUNT(DEVICE_NO)
+		FROM
+		 	M_DEVICE_INFO mdi,PARM_MST pm
+		WHERE
+			pm.TYPE1 = 'LOCATION'
+		AND pm.VALUE = mdi.LOCATION_ID
+		<if test="deviceNo != null and  deviceNo !='' ">
+			AND DEVICE_NO LIKE '%${deviceNo}%'
+		</if>
+		<if test="deviceName !=null and deviceName != ''">
+			AND DEVICE_NAME LIKE '%${deviceName}%'
+		</if>
+	</select>
+
+
+	<!-- 获取所有部门 -->
+	<select id="getAllDept" resultType="DepartmentInfoEntity">
+		SELECT
+			*
+		FROM
+			M_DEPARTMENT_INFO
+	</select>
+</mapper>

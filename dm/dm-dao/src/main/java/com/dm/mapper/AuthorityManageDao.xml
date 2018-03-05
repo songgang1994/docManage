@@ -1,0 +1,162 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+    PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+    "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+    <mapper namespace="com.dm.dao.AuthorityManageDao">
+		<!-- 获取画面标签数据 -->
+	<select id="getRoleActionList" resultType="RoleActionDto">
+		SELECT
+			a.ACTION_ID,
+			a.MENU_ID,
+			a.ELEMENT_NAME,
+			a.SORT_NO,
+			r.ROLE_ID AS roleId,
+			p.DISP_NAME
+		FROM
+			 SYS_ACTION a  LEFT JOIN  ROLE_ACTION_RELATION r
+			 						 			ON a.ACTION_ID = r.ACTION_ID
+									 		  AND r.ROLE_ID = #{roleId}
+									 LEFT JOIN  PARM_MST p
+			 						 		   ON a.ACTION_TYPE = p.VALUE
+									 		 AND p.TYPE1 = 'SYS_ACTION_TYPE'
+		WHERE
+			 a.ACTION_TYPE <![CDATA[<>]]> '1'
+		ORDER BY
+			 a.MENU_ID,
+			 a.SORT_NO
+	</select>
+	<!-- 获取菜单数据 -->
+	<select id="getMenuList" resultType="SysMenuDto">
+		SELECT
+			m.MENU_ID,
+			m.TEXT,
+			m.PARENT,
+			m.SORT_NO,
+			a.ACTION_ID,
+			r.ROLE_ID AS roleId
+		FROM
+			 SYS_MENU m,
+			 SYS_ACTION a LEFT JOIN  ROLE_ACTION_RELATION r
+			 								  ON a.ACTION_ID = r.ACTION_ID
+											AND r.ROLE_ID = #{roleId}
+		WHERE
+			a.MENU_ID = m.MENU_ID
+			AND a.ACTION_TYPE ='1'
+	    ORDER BY
+	  		m.SORT_NO
+	</select>
+	<!-- 获取权限Id集合 -->
+	<select id="getActionIdList" resultType="string">
+		SELECT
+			ACTION_ID
+		FROM
+			 ROLE_ACTION_RELATION
+		WHERE
+			ROLE_ID = #{roleId}
+	</select>
+	<!-- 删除角色权限 -->
+	<delete id="actionRelationDelete">
+        DELETE
+        FROM
+              ROLE_ACTION_RELATION
+        WHERE
+        	  ROLE_ID = #{roleId}
+    </delete>
+    <!-- 新增角色权限 -->
+    <insert id = "actionrelationAdd">
+		INSERT INTO ROLE_ACTION_RELATION
+		           (ROLE_ID,
+		            ACTION_ID,
+		            CREATOR,
+		            CREATE_DT)
+		VALUES
+		<foreach collection="actionSelected"  item="actionId"  index="idx"  separator="," >
+        	(#{roleId},
+        	#{actionId},
+			#{userId},
+			GETDATE())
+    	</foreach>
+    </insert>
+    <!-- 获取角色一览数据  -->
+    <select id="getRoleList" resultType="SysRoleEntity">
+		SELECT
+			ROLE_ID,
+			ROLE_NAME,
+			DESCRIPTION
+		FROM
+			 SYS_ROLE
+		WHERE
+			 ROLE_NAME LIKE '%${roleName}%'
+		AND
+			 DESCRIPTION LIKE '%${description}%'
+		AND
+			DELETE_FLG = '0'
+	</select>
+	<!-- 角色新增 -->
+	<insert id = "roleAdd" >
+			INSERT INTO SYS_ROLE
+		           (ROLE_ID,
+		           ROLE_NAME,
+		            DESCRIPTION,
+		            CREATOR,
+		            CREATE_DT)
+		VALUES
+				((SELECT MAX(ROLE_ID)+1 FROM SYS_ROLE),
+				#{roleInfo.roleName},
+				#{roleInfo.description},
+				 #{roleInfo.creator},
+				 GETDATE())
+	</insert>
+	<!-- 角色修改 -->
+	<update id="roleUpd" >
+		UPDATE
+    		SYS_ROLE
+		SET
+		    ROLE_NAME=#{roleInfo.roleName},
+		    DESCRIPTION=#{roleInfo.description},
+		    UPDATER=#{roleInfo.updater},
+		    UPDATE_DT=GETDATE()
+		WHERE
+		     ROLE_ID = #{roleInfo.roleId}
+	</update>
+	<!-- 角色删除 -->
+	<delete id="roleDelete" >
+		DELETE
+        FROM
+              SYS_ROLE
+        WHERE
+		     ROLE_ID IN
+		    <foreach collection="roleIds" item="roleId" index="index"
+			open="(" close=")" separator=",">
+			 #{roleId}
+			</foreach>
+	</delete>
+	<!-- 根据角色Id获取员工数量 -->
+	 <select id="userCountByRoleId" resultType="int">
+		SELECT
+			COUNT(re.USER_ID)
+		FROM
+			 USER_ROLE_RELATION re,
+			  SYS_USER us
+		WHERE
+			 ROLE_ID IN
+		    <foreach collection="roleIds" item="roleId" index="index"
+			open="(" close=")" separator=",">
+			 #{roleId}
+			</foreach>
+			 AND re.USER_ID = us.USER_ID
+			 AND us.DELETE_FLG <![CDATA[<>]]> '1'
+	</select>
+	<!-- 删除角色权限 -->
+	<delete id="roleActionDelete">
+        DELETE
+        FROM
+              ROLE_ACTION_RELATION
+        WHERE
+         	  ROLE_ID IN
+        	   <foreach collection="roleIds" item="roleId" index="index"
+					open="(" close=")" separator=",">
+				 #{roleId}
+				</foreach>
+    </delete>
+    </mapper>

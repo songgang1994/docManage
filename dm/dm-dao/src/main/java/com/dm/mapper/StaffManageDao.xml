@@ -1,0 +1,350 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+    PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+    "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.dm.dao.StaffManageDao">
+	<select id="getRoles" resultType="RoleDto">
+		SELECT
+				ROLE_ID AS [value],ROLE_NAME AS name
+		FROM
+				SYS_ROLE
+		WHERE
+				DELETE_FLG='0'
+	</select>
+
+	<!-- 查询员工信息 -->
+	<select id="getUserList" resultType="UserRoleDto">
+	SELECT *
+		FROM
+		(
+		SELECT ROW_NUMBER() OVER (ORDER BY a.USER_ID ASC) AS row,
+				a.USER_ID,a.USER_NAME,a.EMAIL,STUFF((
+				SELECT ','+SYS_ROLE.ROLE_NAME
+					FROM
+							SYS_USER as b,USER_ROLE_RELATION,SYS_ROLE
+					WHERE a.USER_NAME = b.USER_NAME  and SYS_ROLE.ROLE_ID = USER_ROLE_RELATION.ROLE_ID and USER_ROLE_RELATION.USER_ID = b.USER_ID
+					FOR xml path('')),1,1,''
+				)AS ROLE_NAME
+		FROM
+				SYS_USER AS a
+		LEFT JOIN  USER_ROLE_RELATION  ON  USER_ROLE_RELATION.USER_ID = a.USER_ID
+		LEFT JOIN  SYS_ROLE  ON  SYS_ROLE.ROLE_ID = USER_ROLE_RELATION.ROLE_ID
+		WHERE  a.DELETE_FLG = '0'
+		<if test=" userName !=null and userName !=''">
+		AND SYS_USER.USER_NAME LIKE '%${userName}%'
+		</if>
+		<if test=" userId !=null and userId !=''">
+		AND SYS_USER.USER_ID LIKE '%${userId}%'
+		</if>
+		<if test=" emailAddress !=null and emailAddress !=''">
+		AND SYS_USER.email LIKE '%${emailAddress}%'
+		</if>
+		<if test=" roleId !=null and roleId !=''">
+		AND SYS_ROLE.ROLE_ID = #{roleId}
+		</if>
+		GROUP by a.USER_ID,a.USER_NAME,a.EMAIL
+		) c
+		WHERE
+ 				row > #{start}
+		AND row <![CDATA[<=]]> #{start} + #{length}
+	</select>
+
+	<!-- <resultMap id="getUserListMap" type="UserRoleDto">
+		<id property="userId" column="USER_ID" javaType="string" jdbcType="VARCHAR"/>
+		<result property="userName" column="USER_NAME" javaType="string" jdbcType="VARCHAR"/>
+		<result property="email" column="EMAIL" javaType="string" jdbcType="VARCHAR"/>
+		<collection property="Rolelis" ofType="RoleofUserDto" >
+			<id property="roleId" column="ROLE_ID"/>
+			<result property="roleName" column="ROLE_NAME" javaType="string" jdbcType="VARCHAR"/>
+		</collection>
+	</resultMap> -->
+
+	<!-- 查询员工信息条数 -->
+	<select  id="getStaffCount" resultType="int">
+		SELECT
+				 COUNT(USER_ID)
+		FROM
+			(
+				SELECT ROW_NUMBER() OVER (ORDER BY a.USER_ID ASC) AS row,
+				a.USER_ID,a.USER_NAME,a.EMAIL,STUFF((
+					SELECT ','+SYS_ROLE.ROLE_NAME
+					FROM
+							SYS_USER as b,USER_ROLE_RELATION,SYS_ROLE
+					WHERE a.USER_NAME = b.USER_NAME  and SYS_ROLE.ROLE_ID = USER_ROLE_RELATION.ROLE_ID and USER_ROLE_RELATION.USER_ID = b.USER_ID
+					FOR xml path('')),1,1,''
+					)AS ROLE_NAME
+					FROM
+							SYS_USER AS a
+					LEFT JOIN  USER_ROLE_RELATION  ON  USER_ROLE_RELATION.USER_ID = a.USER_ID
+					LEFT JOIN  SYS_ROLE  ON  SYS_ROLE.ROLE_ID = USER_ROLE_RELATION.ROLE_ID
+					WHERE  a.DELETE_FLG = '0'
+			<if test=" userName !=null and userName !=''">
+			AND SYS_USER.USER_NAME LIKE '%${userName}%'
+			</if>
+			<if test=" userId !=null and userId !=''">
+			AND SYS_USER.USER_ID LIKE '%${userId}%'
+			</if>
+			<if test=" emailAddress !=null and emailAddress !=''">
+			AND SYS_USER.email LIKE '%${emailAddress}%'
+			</if>
+			<if test=" roleId !=null and roleId !=''">
+			AND SYS_ROLE.ROLE_ID = #{roleId}
+			</if>
+			GROUP by a.USER_ID,a.USER_NAME,a.EMAIL
+			)  a
+	</select>
+
+    <!-- 查询对应id的部门信息 -->
+	<select id="getDeptInfo"  resultType="UserDeptRoleDto">
+			SELECT
+					DISTINCT(SYS_USER.USER_ID) AS USER_ID,
+					SYS_USER.USER_NAME,
+					M_DEPARTMENT_INFO.DEPT_ID,
+					M_DEPARTMENT_INFO.DEPT_NAME,
+					SYS_USER.EMAIL,
+					SYS_USER_DEPT.LEADER_FLG
+			FROM
+					SYS_USER
+			LEFT JOIN
+					SYS_USER_DEPT
+			ON
+					SYS_USER_DEPT.USER_ID = SYS_USER.USER_ID
+			LEFT JOIN
+					M_DEPARTMENT_INFO
+			ON
+					M_DEPARTMENT_INFO.DEPT_ID = SYS_USER_DEPT.DEPT_ID
+			LEFT JOIN
+					USER_ROLE_RELATION
+			ON
+					SYS_USER.USER_ID = USER_ROLE_RELATION.USER_ID
+			LEFT JOIN
+					SYS_ROLE
+			ON
+					SYS_ROLE.ROLE_ID = USER_ROLE_RELATION.ROLE_ID
+			WHERE
+					SYS_USER.USER_ID=#{userId}
+	</select>
+
+	<!-- 查询对应id的用户信息 -->
+	<select id="getStaffInfo" resultType="UserDeptRoleDto" >
+			SELECT
+					DISTINCT(SYS_USER.USER_ID) AS USER_ID,
+					SYS_USER.USER_NAME,
+					SYS_USER.EMAIL,
+					SYS_USER.USER_CODE
+			FROM
+					SYS_USER
+			LEFT JOIN
+					SYS_USER_DEPT
+			ON
+					SYS_USER_DEPT.USER_ID = SYS_USER.USER_ID
+			LEFT JOIN
+					M_DEPARTMENT_INFO
+			ON
+					M_DEPARTMENT_INFO.DEPT_ID = SYS_USER_DEPT.DEPT_ID
+			LEFT JOIN
+					USER_ROLE_RELATION
+			ON
+					SYS_USER.USER_ID = USER_ROLE_RELATION.USER_ID
+			LEFT JOIN
+					SYS_ROLE
+			ON
+					SYS_ROLE.ROLE_ID = USER_ROLE_RELATION.ROLE_ID
+			WHERE
+					SYS_USER.USER_ID=#{userId}
+	</select>
+
+	<!-- 通过用户id查询用户对应的角色 -->
+	<select id="getRoleInfo" resultType="UserDeptRoleDto">
+			SELECT
+					DISTINCT(SYS_USER.USER_ID) AS USER_ID,
+					SYS_ROLE.ROLE_ID
+			FROM
+					SYS_USER
+			LEFT JOIN
+					SYS_USER_DEPT
+			ON
+					SYS_USER_DEPT.USER_ID = SYS_USER.USER_ID
+			LEFT JOIN
+					M_DEPARTMENT_INFO
+			ON
+					M_DEPARTMENT_INFO.DEPT_ID = SYS_USER_DEPT.DEPT_ID
+			LEFT JOIN
+					USER_ROLE_RELATION
+			ON
+					SYS_USER.USER_ID = USER_ROLE_RELATION.USER_ID
+			LEFT JOIN
+					SYS_ROLE
+			ON
+					SYS_ROLE.ROLE_ID = USER_ROLE_RELATION.ROLE_ID
+			WHERE
+					SYS_USER.USER_ID=#{userId}
+	</select>
+
+	<!-- 查询最后一条用户数据 -->
+	<select id="getFinal"  resultType="UserDeptRoleDto">
+			SELECT TOP 1
+					*
+			FROM
+					SYS_USER
+			ORDER BY convert(int,USER_ID)  DESC
+	</select>
+
+	<!-- 新增用户信息 -->
+	<insert id="addUser" parameterType="UserDeptRoleDto">
+			INSERT
+					INTO
+			SYS_USER(USER_ID,USER_CODE,USER_NAME,EMAIL,CREATOR,CREATE_DT,DELETE_FLG)
+					VALUES
+			(#{user.userId},#{user.userCode},#{user.userName},#{user.email},#{loginId},GETDATE(),'0')
+	</insert>
+
+	<!-- 批量插入部门信息 -->
+	<insert id="addDept" parameterType="UserDeptRoleDto">
+			INSERT
+					INTO
+			SYS_USER_DEPT
+					(USER_ID,DEPT_ID,LEADER_FLG,CREATOR,CREATE_DT)
+			VALUES
+	 		<foreach collection="list" index="index" item="item" open="" separator="," close="">
+					(#{item.userId},#{item.deptId},#{item.leaderFlg},#{loginId},GETDATE())
+			</foreach>
+	</insert>
+
+	<!-- 修改用户信息 -->
+	<update id="updateUser" parameterType="UserDeptRoleDto">
+			UPDATE
+					SYS_USER
+			SET
+					USER_CODE=#{use.userCode},USER_NAME=#{use.userName},EMAIL=#{use.email},UPDATER=#{loginId},UPDATE_DT=GETDATE()
+			WHERE
+					USER_ID = #{use.userId}
+	</update>
+
+	<!-- 删除部门所属 -->
+	<delete id="deleteDept" parameterType="UserDeptRoleDto">
+			DELETE  FROM
+					SYS_USER_DEPT
+			WHERE
+					USER_ID=#{userId} AND DEPT_ID=#{deptId}
+	</delete>
+
+	<!-- 添加角色 -->
+	<insert id="addRole">
+			INSERT
+					 INTO
+			USER_ROLE_RELATION
+					(USER_ID,ROLE_ID,CREATOR,CREATE_DT)
+			VALUES
+			<foreach collection="list" index="index" item="item" open="" separator="," close="">
+					(#{item.userId},#{item.roleName},#{loginId},GETDATE())
+			</foreach>
+	</insert>
+
+	<!-- 删除角色 -->
+	<delete id="delRole">
+			DELETE
+			FROM
+				USER_ROLE_RELATION
+			WHERE
+				USER_ID=#{userId}
+	</delete>
+
+	<!-- 单行删除用户信息 -->
+	<update id="deleteFlg">
+			UPDATE
+					SYS_USER
+			SET
+					DELETE_FLG = '1',
+					UPDATER=#{loginId},
+					UPDATE_DT=GETDATE()
+			WHERE
+					USER_ID = #{userId}
+	</update>
+
+	<!-- 查询系统日志 -->
+	 <select id="getLog" resultType="SysLogDto">
+			SELECT
+					*
+			FROM (
+					SELECT
+							ROW_NUMBER() OVER (ORDER BY ID ASC) AS row,
+							ID,OPR_DATETIME,SYS_LOG.USER_ID,IP,DOCUMENT_CODE,PARM_MST.DISP_NAME,SYS_USER.USER_NAME
+					FROM
+							SYS_LOG
+					LEFT JOIN
+							PARM_MST
+					ON
+							PARM_MST.[VALUE]=SYS_LOG.OPR_CONTENT
+					LEFT JOIN
+							SYS_USER
+					ON
+							SYS_USER.USER_ID=SYS_LOG.USER_ID
+					WHERE PARM_MST.TYPE1='OPERATE_TYPE'
+					<if test="sys.startDt !=null and sys.startDt !=''">
+						AND	OPR_DATETIME <![CDATA[>=]]>#{sys.startDt}
+					</if>
+					<if test="sys.endDt !=null and sys.endDt !=''">
+						 AND OPR_DATETIME <![CDATA[<=]]>#{sys.endDt}
+					</if>
+					<if test="sys.userId !=null and sys.userId !=''">
+						AND SYS_LOG.USER_ID LIKE  '%${sys.userId}%'
+					</if>
+					<if test="sys.documentCode !=null and sys.documentCode !=''">
+						AND DOCUMENT_CODE LIKE  '%${sys.documentCode}%'
+					</if>
+					<if test="sys.userName !=null and sys.userName !=''">
+						AND SYS_USER.USER_NAME LIKE  '%${sys.userName}%'
+					</if>
+					<if test=" sys.oprContent !=null and sys.oprContent !=''">
+						AND	OPR_CONTENT=#{sys.oprContent}
+					</if>
+					)	a
+		WHERE
+ 				row > #{start}
+		AND row <![CDATA[<=]]> #{start} + #{length}
+	</select>
+
+
+
+	<!-- 系统日志总数 -->
+	<select id="getTatal" resultType="int">
+			SELECT
+					COUNT(ID)
+			FROM (
+					SELECT
+							ROW_NUMBER() OVER (ORDER BY ID ASC) AS row,
+							ID,OPR_DATETIME,SYS_LOG.USER_ID,IP,DOCUMENT_CODE,PARM_MST.DISP_NAME,SYS_USER.USER_NAME
+					FROM
+							SYS_LOG
+					LEFT JOIN
+							PARM_MST
+					ON
+							PARM_MST.[VALUE]=SYS_LOG.OPR_CONTENT
+					LEFT JOIN
+							SYS_USER
+					ON
+							SYS_USER.USER_ID=SYS_LOG.USER_ID
+					WHERE PARM_MST.TYPE1='OPERATE_TYPE'
+					<if test="startDt !=null and startDt !=''">
+						AND	OPR_DATETIME <![CDATA[>=]]>#{startDt}
+					</if>
+					<if test="endDt !=null  and endDt !=''">
+						 AND OPR_DATETIME <![CDATA[<=]]>#{endDt}
+					</if>
+					<if test=" userId !=null and userId !=''">
+						AND SYS_LOG.USER_ID LIKE  '%${userId}%'
+					</if>
+					<if test=" documentCode !=null and documentCode !=''">
+						AND DOCUMENT_CODE LIKE  '%${documentCode}%'
+					</if>
+					<if test="userName !=null and userName !=''">
+						AND SYS_USER.USER_NAME LIKE  '%${userName}%'
+					</if>
+					<if test=" oprContent !=null and oprContent !=''">
+						AND	OPR_CONTENT=#{oprContent}
+					</if>
+					)	a
+
+	</select>
+</mapper>

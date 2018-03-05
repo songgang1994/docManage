@@ -1,0 +1,246 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+    PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+    "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.dm.dao.DocBatchDao">
+
+	<!-- 获取文档类型 -->
+	<select id="queryDocItem" resultType="DocItemDataSourceCodeEntity">
+		SELECT * FROM DOCUMENT_ITEM_DATA_SOURCE_CODE
+		WHERE DOCUMENT_ITEM_SOURCE_CODE = 'DATA_SOURCE_F00001'
+	</select>
+
+<!--  -->
+	<select id="getDocItemsEntity" resultType="DocItemsEntity">
+		SELECT
+			*
+		FROM
+			DOCUMENT_ITEMS
+		WHERE
+			DOCUMENT_ITEM_CODE = #{docItemCode}
+	</select>
+	<!-- 获取所有部门 -->
+	<select id="getAllDepart" resultType="DepartmentInfoEntity">
+		SELECT * FROM M_DEPARTMENT_INFO
+		ORDER BY DEPT_ID
+	</select>
+
+	<!-- 根绝用户id获取用户所属部门 -->
+	<select id="queryDeptListByUserId" resultType="DepartmentInfoEntity">
+		SELECT md.DEPT_ID,DEPT_NAME,PARENT_DEPT_ID FROM SYS_USER_DEPT sud
+		LEFT JOIN M_DEPARTMENT_INFO md ON sud.DEPT_ID = md.DEPT_ID
+		WHERE USER_ID = #{userId}
+		ORDER BY md.DEPT_ID
+	</select>
+
+	<!-- 根据部门id查询该部门下所属部门 -->
+	<select id="queryDeptListByDeptId" resultType="DepartmentInfoEntity">
+		SELECT * FROM M_DEPARTMENT_INFO
+		WHERE PARENT_DEPT_ID IN
+		<foreach collection="list" index="index" item="item" open="(" separator="," close=")">
+			#{item.deptId}
+		</foreach>
+		ORDER BY DEPT_ID
+	</select>
+	<!-- 查询文档状态 -->
+	<select id="queryDocType" resultType="ParmMstEntity">
+		SELECT * FROM PARM_MST
+		WHERE TYPE1 = #{docStatus}
+	</select>
+	<!-- 查询结果 -->
+	<select id="batchCheckInit" resultType="DocBatchCheckTableDto">
+		SELECT SA.*,
+			SB.DISP_NAME,
+			SC.USER_NAME,
+			SD.DEPT_NAME,
+			SE.ITEM_NAME,
+			SF.FILE_NAME,
+			SF.FILE_NO
+		FROM(
+			SELECT
+				DOCUMENT_CODE,
+				DOCUMENT_TYPE,
+				APPROVAL_STATUS,
+				DEPT_ID AS DEPT_ID,
+				DIRECTOR,
+				'1' AS APPROVE,
+				NULL AS APPROVE_COMMENT,
+				'' AS APPROVE_DATE,
+				UPDATE_DT
+			FROM DOCUMENT_DETAIL_INFO A
+			WHERE A.APPROVAL_STATUS = '2'
+
+			<foreach collection="subDept" index="index" item="item" open=" AND A.APPROVAL_DEPT_ID IN (" separator="," close=")">
+			#{item.deptId}
+			</foreach>
+			<if test="docCode != null and docCode != '' ">
+			AND A.DOCUMENT_CODE LIKE '%#{docCode}%'
+			</if>
+			<if test="docType != null and docType != '' ">
+			AND A.DOCUMENT_TYPE = #{docType}
+			</if>
+			<if test="deptId != null and deptId != '' ">
+			AND A.DEPT_ID = #{deptId}
+			</if>
+			<if test="approvalStatus != null and approvalStatus != '' ">
+			AND A.APPROVAL_STATUS = #{approvalStatus}
+			</if>
+			<if test="director != null and director != '' ">
+			AND A.DIRECTOR = #{director}
+			</if>
+		) SA
+		LEFT JOIN PARM_MST SB ON SB.[VALUE] = SA.APPROVAL_STATUS
+		LEFT JOIN SYS_USER SC ON SC.USER_ID = SA.DIRECTOR
+		LEFT JOIN M_DEPARTMENT_INFO SD ON SD.DEPT_ID = CONVERT(VARCHAR,SA.DEPT_ID )
+		LEFT JOIN DOCUMENT_ITEM_DATA_SOURCE_CODE SE ON SE.ITEM_VALUE = SA.DOCUMENT_TYPE
+		LEFT JOIN DOCUMENT_FILE SF ON SF.DOCUMENT_CODE = SA.DOCUMENT_CODE AND SF.FILE_TYPE = '1'
+		WHERE SE.DOCUMENT_ITEM_SOURCE_CODE = 'DATA_SOURCE_F00001'
+		AND SB.TYPE1 = 'DOCUMENT_STATUS'
+		ORDER BY SA.APPROVE,SA.DOCUMENT_TYPE,SA.APPROVE_DATE DESC,SA.APPROVAL_STATUS
+	</select>
+	<!-- 根据父文件查询子文件 -->
+	<select id="getChildFileByParentFile" resultType="DocFileEntity">
+		SELECT DOCUMENT_CODE,FILE_NO,FILE_NAME FROM DOCUMENT_FILE
+		WHERE DOCUMENT_CODE IN
+		<foreach collection="list" index="index" item="item" open="(" separator="," close=")">
+			#{item.documentCode}
+		</foreach>
+		AND FILE_TYPE = '2'
+	</select>
+	<!-- 获取文件内容 -->
+	<select id="queryFileInfo" resultType="DocFileEntity">
+		SELECT FILE_NAME,FILE_CONTENT FROM DOCUMENT_FILE
+		WHERE DOCUMENT_CODE = #{docCode}
+		AND FILE_TYPE = #{fileType}
+		<if test=" fileNo != null and fileNo != '' ">
+		AND FILE_NO = #{fileNo}
+		</if>
+	</select>
+	<!-- 插入文档审批履历表 -->
+	<insert id="addDocApproveHistory">
+		INSERT INTO DOCUMENT_APPROVE_HISTORY
+		(DOCUMENT_CODE,APPROVE_DATE,APPROVE_USER_ID,APPROVE_OPINION,APPROVE_STATUS,CREATOR,CREATE_DT)
+		VALUES
+		<foreach collection="docCode" index="index" item="item" open="" separator="," close="">
+			(#{item},CONVERT(VARCHAR(10),GETDATE(),120),#{userId},#{comment},#{flag},#{userId},GETDATE())
+		</foreach>
+	</insert>
+	<!-- 检查是否被其他用户更新 -->
+	<select id="ckeckDocUpdateDT" resultType="DocDetailInfoEntity">
+		SELECT * FROM DOCUMENT_DETAIL_INFO
+		WHERE DOCUMENT_CODE = #{docCode}
+
+	</select>
+	<!-- 更新审核意见 -->
+	<update id="updApproveComment">
+		UPDATE DOCUMENT_DETAIL_INFO
+		SET APPROVAL_COMMENT = #{comment},UPDATE_DT =  GETDATE(),UPDATER = #{userId}
+		<if test="approvalStatus != null">
+		,APPROVAL_STATUS = #{approvalStatus}
+		</if>
+		WHERE
+		<foreach collection="docCode" index="index" item="item" open="" separator="OR" close="">
+				DOCUMENT_CODE = #{item}
+		</foreach>
+	</update>
+	<!-- 根据docCode获取docType -->
+	<select id="getDocTypeByDocCode" resultType="DocDetailInfoEntity">
+		SELECT * FROM DOCUMENT_DETAIL_INFO
+		WHERE DOCUMENT_CODE = #{docCode}
+	</select>
+	<!-- 更新文档管理表的文档状态 -->
+	<update id="updDocStatus">
+		UPDATE DOCUMENT_DETAIL_INFO
+		SET
+		<if test="approveDeptId == null">
+			APPROVAL_DEPT_ID = NULL,
+			APPROVAL_STATUS = '3',
+		</if>
+		<if test="approveDeptId != null">
+			APPROVAL_DEPT_ID = #{approveDeptId},
+		</if>
+		UPDATE_DT=#{sysTime},
+		UPDATER = #{userId}
+		WHERE DOCUMENT_CODE = #{docCode}
+	</update>
+	<!--  -->
+	<select id="getParentDeptIds" resultType="DepartmentInfoEntity">
+		SELECT
+			*
+		FROM
+		M_DEPARTMENT_INFO
+		WHERE DEPT_ID = (
+		SELECT PARENT_DEPT_ID
+		FROM M_DEPARTMENT_INFO
+		WHERE DEPT_ID IN
+		<foreach collection="list" index="index" item="item" open="(" separator="," close=")">
+				#{item}
+		</foreach>
+		)
+	</select>
+	<!--  -->
+	<select id="getuserInfoByDeptId" resultType="UserEntity">
+		SELECT
+			*
+		FROM
+			SYS_USER
+		WHERE
+			USER_ID IN (
+				SELECT
+					USER_ID
+				FROM
+					SYS_USER_DEPT
+				WHERE
+					DEPT_ID IN
+					<foreach collection="deptIds" index="index" item="item" open="(" separator="," close=")">
+						#{item}
+					</foreach>
+				AND LEADER_FLG = 1
+			)
+	</select>
+	<!--  -->
+	<select id="getDocName" resultType="DocItemDataSourceCodeEntity">
+		SELECT
+			*
+		FROM
+			DOCUMENT_ITEM_DATA_SOURCE_CODE
+		WHERE
+			DOCUMENT_ITEM_SOURCE_CODE = 'DATA_SOURCE_F00001'
+		AND ITEM_VALUE = (
+			SELECT
+				DOCUMENT_TYPE
+			FROM
+				DOCUMENT_DETAIL_INFO
+			WHERE
+				DOCUMENT_CODE = #{docCode}
+		)
+	</select>
+	<!--  -->
+	<select id="getuserInfoByDirector" resultType="UserEntity">
+		SELECT
+			*
+		FROM
+			SYS_USER
+		WHERE
+			USER_ID = (
+				SELECT
+					DIRECTOR
+				FROM
+					DOCUMENT_DETAIL_INFO
+				WHERE
+					DOCUMENT_CODE = #{docCode}
+			)
+	</select>
+	<select id="getApprovalIds" resultType="java.lang.String">
+		SELECT
+			USER_ID
+		FROM
+			SYS_USER_DEPT
+		WHERE
+			DEPT_ID IN
+		<foreach collection="list" index="index" item="item" open="(" separator="," close=")">
+				#{item}
+		</foreach>
+		AND LEADER_FLG = '1'
+	</select>
+</mapper>

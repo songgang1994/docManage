@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+    PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+    "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+    <mapper namespace="com.dm.dao.DocSearchDao">
+    <!--  -->
+	<select id="getDeptIdByUserId" resultType="UserDeptEntity">
+		SELECT DEPT_ID
+		FROM SYS_USER_DEPT
+		WHERE USER_ID = #{userId}
+	</select>
+	<!--  -->
+	<select id="getQueryDataItemByUserId" resultType="DocSearchDto">
+		SELECT A.*,B.*
+		FROM DOCUMENT_SEARCH_ITEM_SETTING A,DOCUMENT_ITEMS B
+		WHERE A.USER_ID = #{userId}
+		AND A.DOCUMENT_ITEM_CODE = B.DOCUMENT_ITEM_CODE
+		AND A.DOCUMENT_ITEM_NO = B.DOCUMENT_ITEM_NO
+		ORDER BY A.LAYOUT_ROW,A.LAYOUT_COL
+	</select>
+	<!--  -->
+	<select id="getDataSourceByCode" resultType="DocItemDataSourceCodeEntity">
+		SELECT DOCUMENT_ITEM_SOURCE_CODE,ITEM_VALUE,ITEM_NAME FROM DOCUMENT_ITEM_DATA_SOURCE_CODE
+		WHERE DOCUMENT_ITEM_SOURCE_CODE IN
+		<foreach collection="list" index="index" item="item" open="(" separator="," close=")">
+		#{item.documentItemSourceCode}
+		</foreach>
+		ORDER BY DOCUMENT_ITEM_SOURCE_CODE,	ITEM_SORT_NO
+	</select>
+	<!--  -->
+	<select id="getDataSourceByParm" resultType="ParmMstEntity">
+		SELECT TYPE1,VALUE,DISP_NAME FROM PARM_MST
+		WHERE TYPE1='DOCUMENT_STATUS' OR TYPE1='APPROVE_RESULT_TYPE'
+	</select>
+	<!--  -->
+	<select id="query" resultType="TableSearchDto">
+		SELECT
+		${selectSQL}
+		FROM DOCUMENT_DETAIL_INFO,DOCUMENT_DETAIL_CUSTOME_INFO
+		WHERE DOCUMENT_DETAIL_INFO.DOCUMENT_CODE = DOCUMENT_DETAIL_CUSTOME_INFO.DOCUMENT_CODE
+		AND CASE
+		WHEN DOCUMENT_DETAIL_INFO.DIRECTOR = #{userId}
+		THEN DOCUMENT_DETAIL_INFO.APPROVAL_STATUS ELSE '3' END = DOCUMENT_DETAIL_INFO.APPROVAL_STATUS
+		<if test="querySQL != '' ">
+		AND ${querySQL}
+		</if>
+		ORDER BY DOCUMENT_DETAIL_INFO.DOCUMENT_CODE
+	</select>
+	<!--  -->
+	<select id="getQueryUSers" resultType="java.lang.String">
+		SELECT
+			${selectSQL}
+		FROM DOCUMENT_DETAIL_CUSTOME_INFO
+		WHERE DOCUMENT_CODE = #{querySQL}
+	</select>
+	<!--  -->
+	<select id="getFile" resultType="DocFileEntity">
+		SELECT FILE_NAME,FILE_CONTENT
+		FROM DOCUMENT_FILE
+		WHERE DOCUMENT_CODE = #{docCode}
+		AND FILE_NO=#{fileNo}
+	</select>
+	<!--  -->
+	<delete id="delDocDetailInfo">
+		DELETE FROM DOCUMENT_DETAIL_INFO
+		WHERE DOCUMENT_CODE = #{docCode}
+	</delete>
+	<!--  -->
+	<delete id="delDocCustom">
+		DELETE FROM DOCUMENT_DETAIL_CUSTOME_INFO
+		WHERE DOCUMENT_CODE = #{docCode}
+	</delete>
+	<!--  -->
+	<delete id="delDocFile">
+		DELETE FROM DOCUMENT_FILE
+		WHERE DOCUMENT_CODE = #{docCode}
+	</delete>
+	<!--  -->
+	<delete id="delDocViewDept">
+		DELETE FROM DOCUMENT_VIEW_DEPT
+		WHERE DOCUMENT_CODE = #{docCode}
+	</delete>
+	<!--  -->
+	<select id="getdocEntity" resultType="DocDetailInfoEntity">
+		SELECT
+			*
+		FROM
+			DOCUMENT_DETAIL_INFO
+		WHERE
+			DOCUMENT_CODE = #{docCode}
+	</select>
+	<!--  -->
+	<select id="getViewDeptIds" resultType="java.lang.String">
+		SELECT
+			DEPT_ID
+		FROM
+			DOCUMENT_VIEW_DEPT
+		WHERE
+			DOCUMENT_CODE = #{docCode}
+	</select>
+    </mapper>

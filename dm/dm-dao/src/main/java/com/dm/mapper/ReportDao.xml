@@ -1,0 +1,195 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+    PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+    "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.dm.dao.ReportDao">
+
+	<!-- 获取指定设备，指定期间内的统计数据 -->
+	<select id="getDeviceStatistics" resultType="DeviceStatisticsDto">
+		SELECT
+			DEVICE_NO,
+			DEVICE_NAME,
+			workingTime * 1.0 / 60 AS workingTime,
+			maintenanceTime * 1.0 / 60 AS maintenanceTime,
+			workingTime + maintenanceTime AS useTime,
+			allTime,
+			CAST (
+				CONVERT (
+					DECIMAL (18, 0),
+					(
+						workingTime + maintenanceTime
+					) * 100.0 / allTime
+				) AS VARCHAR
+			) + '%' AS usageRate,
+			#{startDt} AS yearMonth
+
+		FROM
+			(
+				SELECT
+					d.DEVICE_NO,
+					d.DEVICE_NAME,
+					ISNULL(SUM(wt.times), 0) AS workingTime,
+					ISNULL(SUM(mt.times), 0) AS maintenanceTime,
+					DATEDIFF(
+						mi,
+						#{startDt},
+						#{endDt}
+					) AS allTime
+				FROM
+					M_DEVICE_INFO d
+				LEFT JOIN (
+					SELECT
+						DEVICE_NO,
+						DATEDIFF(
+							mi,
+							CASE WHEN
+								START_DT <![CDATA[>=]]> #{startDt}
+							THEN
+								START_DT
+							ELSE
+								#{startDt}
+							END,
+							CASE WHEN
+								END_DT <![CDATA[<=]]> #{endDt}
+							THEN
+								END_DT
+							ELSE
+								#{endDt}
+							END
+						) AS times
+					FROM
+						T_DEVICE_USE_INFO
+					WHERE
+						USE_TYPE = 1
+					AND START_DT <![CDATA[<=]]> #{endDt}
+					AND END_DT <![CDATA[>=]]> #{startDt}
+				) AS wt
+				ON
+					d.DEVICE_NO = wt.DEVICE_NO
+				LEFT JOIN (
+					SELECT
+						DEVICE_NO,
+						DATEDIFF(
+							mi,
+							CASE WHEN
+								START_DT <![CDATA[>=]]> #{startDt}
+							THEN
+								START_DT
+							ELSE
+								#{startDt}
+							END,
+							CASE WHEN
+								END_DT <![CDATA[<=]]> #{endDt}
+							THEN
+								END_DT
+							ELSE
+								#{endDt}
+							END
+						) AS times
+					FROM
+						T_DEVICE_USE_INFO
+					WHERE
+						USE_TYPE = 2
+					AND START_DT <![CDATA[<=]]> #{endDt}
+					AND END_DT <![CDATA[>=]]> #{startDt}
+				) AS mt
+				ON
+					d.DEVICE_NO = mt.DEVICE_NO
+				WHERE
+					d.DEVICE_NO = #{deviceNo}
+				GROUP BY
+					d.DEVICE_NO,
+					d.DEVICE_NAME
+			) AS tb
+	</select>
+
+	<!-- 获取部署年度文档统计的部门 -->
+	<select id="getDepts" resultType="String">
+		SELECT
+			doc.DEPT_ID
+		FROM
+			DOCUMENT_DETAIL_INFO doc
+		WHERE
+			doc.DOCUMENT_TYPE IN
+			<foreach collection="docTypes" item="docType" index="index"
+            	open="(" close=")" separator=",">
+             	#{docType}
+        	</foreach>
+		AND doc.CREATE_DT BETWEEN #{startDt}
+		AND #{endDt}
+		AND doc.DEPT_ID IS NOT NULL
+		GROUP BY
+			doc.DEPT_ID
+	</select>
+
+	<!-- 获取部署年度文档统计 -->
+	<select id="getDepartAnnualStatistics" resultMap="DepartAnnualStatisticsDtoMap">
+		SELECT
+			dp.DEPT_ID,
+			dp.DEPT_NAME,
+			#{startDt} AS years,
+			ds.ITEM_VALUE,
+			ds.ITEM_NAME,
+			CASE dp.DEPT_ID	WHEN ds.DEPT_ID THEN typecnt ELSE 0	END AS cnt
+		FROM
+			M_DEPARTMENT_INFO dp
+		CROSS JOIN (
+			SELECT
+				doc.DEPT_ID,
+				so.ITEM_SORT_NO,
+				so.ITEM_VALUE,
+				so.ITEM_NAME,
+				SUM (
+					CASE doc.DOCUMENT_CODE WHEN NULL THEN 0	ELSE 1 END
+				) AS typecnt
+			FROM
+				DOCUMENT_DETAIL_INFO doc
+			RIGHT JOIN
+				DOCUMENT_ITEM_DATA_SOURCE_CODE so
+			ON
+				so.ITEM_VALUE = doc.DOCUMENT_TYPE
+			AND doc.CREATE_DT BETWEEN #{startDt}
+			AND #{endDt}
+			WHERE
+				so.ITEM_VALUE IN
+				<foreach collection="docTypes" item="docType" index="index"
+	            	open="(" close=")" separator=",">
+	             	#{docType}
+	        	</foreach>
+			GROUP BY
+				so.ITEM_VALUE,
+				so.ITEM_NAME,
+				so.ITEM_SORT_NO,
+				doc.DEPT_ID
+		) AS ds
+		WHERE
+			dp.DEPT_ID IN
+			<foreach collection="deptIds" item="deptId" index="index"
+            	open="(" close=")" separator=",">
+             	#{deptId}
+        	</foreach>
+		ORDER BY
+			dp.DEPT_ID,
+			ds.ITEM_SORT_NO
+	</select>
+	<resultMap id = "DepartAnnualStatisticsDtoMap"  type="DepartAnnualStatisticsDto">
+		<id property="deptId" column="DEPT_ID" javaType="string" jdbcType="VARCHAR" />
+		<result property="deptId" column="DEPT_ID" javaType="string"
+			jdbcType="VARCHAR" />
+		<result property="deptName" column="DEPT_NAME" javaType="string"
+			jdbcType="VARCHAR" />
+		<result property="years" column="years" javaType="java.sql.Date"
+			jdbcType="DATE" />
+		<collection property="annualStatisticsDtoList" ofType="AnnualStatisticsDto">
+			<id property="itemValue" column="ITEM_VALUE" javaType="string"
+				jdbcType="VARCHAR" />
+			<result property="itemValue" column="ITEM_VALUE" javaType="string"
+				jdbcType="VARCHAR" />
+			<result property="itemName" column="ITEM_NAME" javaType="string"
+				jdbcType="VARCHAR" />
+			<result property="cnt" column="cnt" javaType="int"
+				jdbcType="INTEGER" />
+		</collection>
+	</resultMap>
+</mapper>

@@ -1,0 +1,428 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+    PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+    "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+    <mapper namespace="com.dm.dao.ProjectDao">
+	<!-- 获取课题一览列表数据 -->
+	<select id="getSubjectList" resultMap="subjectListResultMap">
+	    SELECT *
+	    FROM
+	    (
+		SELECT
+		    ROW_NUMBER() OVER (partition by info.DEPT_ID ORDER BY su.PROJECT_NO ASC) AS row,
+			su.FY_YEAR,
+			su.PROJECT_NO,
+			su.PROJECT_NAME,
+			info.DEPT_ID,
+			info.DEPT_NAME,
+			pa.DISP_NAME,
+			su.PLAN_TIMES,
+			su.PROJECT_GOAL,
+			su.CREATOR
+		FROM
+			M_SUBJECT su LEFT JOIN M_SUBJECT_DEP dep
+			ON su.PROJECT_NO = dep.PROJECT_NO
+			AND su.FY_YEAR = dep.FY_YEAR
+			LEFT JOIN PARM_MST pa
+			ON su.PROJECT_TYPE = pa.VALUE
+			LEFT JOIN M_DEPARTMENT_INFO info
+			ON dep.DEPT_ID = info.DEPT_ID
+		WHERE
+			su.FY_YEAR LIKE '%${projectInfo.fyYear}%'
+		AND
+			su.PROJECT_NAME LIKE '%${projectInfo.projectName}%'
+		AND
+			su.PROJECT_TYPE =  #{projectInfo.projectType}
+		AND
+			dep.DEPT_ID IN
+			<foreach collection="projectInfo.deptIdList" item="deptId" index="index"
+			open="(" close=")" separator=",">
+			 #{deptId}
+			</foreach>
+		AND
+			pa.TYPE1=#{type1}
+		) a
+		WHERE
+			row > #{start}
+		AND row <![CDATA[<=]]> #{start} + #{length}
+	</select>
+	<select id="getSubjectListAll" resultMap="subjectListResultMap">
+		SELECT
+			su.FY_YEAR,
+			su.PROJECT_NO,
+			su.PROJECT_NAME,
+			info.DEPT_ID,
+			info.DEPT_NAME,
+			pa.DISP_NAME,
+			su.PLAN_TIMES,
+			su.CONTENTS,
+			su.PROJECT_GOAL,
+			su.CREATOR,
+			le.	LEGAL_ID,
+			le.PERCENTAGE,
+			par.DISP_NAME AS DISPNAME
+		FROM
+			M_SUBJECT su LEFT JOIN M_SUBJECT_DEP dep
+			ON su.PROJECT_NO = dep.PROJECT_NO
+			AND su.FY_YEAR = dep.FY_YEAR
+			LEFT JOIN PARM_MST pa
+			ON su.PROJECT_TYPE = pa.VALUE
+			LEFT JOIN M_DEPARTMENT_INFO info
+			ON dep.DEPT_ID = info.DEPT_ID
+			LEFT JOIN M_SUBJECT_LEGAL le
+			ON su.PROJECT_NO = le.PROJECT_NO
+			AND su.FY_YEAR = le.FY_YEAR
+			LEFT JOIN (SELECT
+									VALUE,
+									DISP_NAME
+							FROM
+									PARM_MST
+							WHERE
+									TYPE1=#{type2}
+			)	 par
+			ON le.LEGAL_ID = par.VALUE
+		WHERE
+			su.FY_YEAR LIKE '%${projectInfo.fyYear}%'
+		AND
+			su.PROJECT_NAME LIKE '%${projectInfo.projectName}%'
+		AND
+			su.PROJECT_TYPE =  #{projectInfo.projectType}
+		AND
+			dep.DEPT_ID IN
+			<foreach collection="projectInfo.deptIdList" item="deptId" index="index"
+			open="(" close=")" separator=",">
+			 #{deptId}
+			</foreach>
+		AND
+			pa.TYPE1=#{type1}
+	</select>
+	<resultMap id = "subjectListResultMap"  type="ProjectInfoDto">
+		<id property="projectNo" column="PROJECT_NO" javaType="string" jdbcType="VARCHAR" />
+		<result property="fyYear" column="FY_YEAR" javaType="string"
+			jdbcType="VARCHAR" />
+		<result property="projectNo" column="PROJECT_NO" javaType="string"
+			jdbcType="VARCHAR" />
+		<result property="projectName" column="PROJECT_NAME" javaType="string"
+			jdbcType="VARCHAR" />
+		<result property="dispName" column="DISP_NAME" javaType="string"
+			jdbcType="VARCHAR" />
+		<result property="planTimes" column="PLAN_TIMES" />
+		<result property="contents" column="CONTENTS" javaType="string"
+			jdbcType="VARCHAR" />
+		<result property="projectGoal" column="PROJECT_GOAL" javaType="string"
+			jdbcType="VARCHAR" />
+		<result property="creator" column="CREATOR" javaType="string"
+			jdbcType="VARCHAR" />
+		<collection property="departmentInfo" ofType="DepartmentInfoEntity">
+			<id property="deptId" column="DEPT_ID" javaType="string" jdbcType="VARCHAR" />
+			<result property="deptId"  column="DEPT_ID" javaType="string" jdbcType="VARCHAR" />
+			<result property="deptName"  column="DEPT_NAME" javaType="string" jdbcType="VARCHAR" />
+		</collection>
+		<collection property="subjectLegal" ofType="SubjectLegalDto">
+			<id property="legalId" column="LEGAL_ID" javaType="int"
+				jdbcType="INTEGER" />
+			<result property="legalId" column="LEGAL_ID" javaType="int"
+				jdbcType="INTEGER" />
+			<result property="dispName" column="DISPNAME" javaType="string"
+				jdbcType="VARCHAR" />
+			<result property="percentage" column="PERCENTAGE" />
+		</collection>
+	</resultMap>
+	<!-- 获取课题总共记录数 -->
+	<select id="getSubjectListCount" resultType="int">
+	SELECT
+		COUNT(DISTINCT a.PROJECT_NO)
+	FROM(
+		SELECT
+			su.PROJECT_NO
+		FROM
+			M_SUBJECT su LEFT JOIN M_SUBJECT_DEP dep
+			ON su.PROJECT_NO = dep.PROJECT_NO
+			AND su.FY_YEAR = dep.FY_YEAR
+			LEFT JOIN PARM_MST pa
+			ON su.PROJECT_TYPE = pa.VALUE
+			LEFT JOIN M_DEPARTMENT_INFO info
+			ON dep.DEPT_ID = info.DEPT_ID
+		WHERE
+			su.FY_YEAR LIKE '%${projectInfo.fyYear}%'
+		AND
+			su.PROJECT_NAME LIKE '%${projectInfo.projectName}%'
+		AND
+			su.PROJECT_TYPE =  #{projectInfo.projectType}
+		AND
+			dep.DEPT_ID IN
+			<foreach collection="projectInfo.deptIdList" item="deptId" index="index"
+			open="(" close=")" separator=",">
+			 #{deptId}
+			</foreach>
+		AND
+			pa.TYPE1=#{type1}
+	) a
+	</select>
+	<!-- 新增课题 -->
+	<insert id = "projectAdd" useGeneratedKeys="true"  parameterType="ProjectInfoDto">
+		INSERT INTO M_SUBJECT
+		           (PROJECT_NO,
+		            FY_YEAR,
+		            PROJECT_NAME,
+		            PROJECT_GOAL,
+		            PLAN_TIMES,
+		            PROJECT_TYPE,
+		            CONTENTS,
+		            CREATOR,
+		            CREATE_DT)
+		VALUES(#{projectForm.projectNo},
+			   		#{projectForm.fyYear},
+			   		#{projectForm.projectName},
+			   		#{projectForm.projectGoal},
+			   		#{projectForm.planTimes},
+			   		#{projectForm.projectType},
+			   		#{projectForm.contents},
+			   		#{projectForm.creator},
+			   		GETDATE())
+    </insert>
+    <!-- 获取课题工时count -->
+    <select id="countWorking" resultType="int">
+		SELECT
+			  COUNT(1)
+		FROM
+		   	  T_WORKING_TIMES
+		WHERE
+		 	  PROJECT_NO = #{projectNo}
+		 AND
+		 	  FY_YEAR = #{fyYear}
+	</select>
+	<!-- 删除课题 -->
+	 <delete id="projetctDelete">
+        DELETE
+        FROM
+              M_SUBJECT
+        WHERE
+        	  PROJECT_NO = #{projectNo}
+		 AND
+		 	  FY_YEAR = #{fyYear}
+    </delete>
+    <!-- 删除法人 -->
+     <delete id="subjectLegalDelete">
+        DELETE
+        FROM
+              M_SUBJECT_LEGAL
+        WHERE
+        	  PROJECT_NO = #{projectNo}
+		 AND
+		 	  FY_YEAR = #{fyYear}
+    </delete>
+    <!-- 课题部署删除 -->
+    <delete id="subjectDepDelete">
+        DELETE
+        FROM
+              M_SUBJECT_DEP
+        WHERE
+        	  PROJECT_NO = #{projectNo}
+		 AND
+		 	  FY_YEAR = #{fyYear}
+    </delete>
+    <!-- 指定课题信息获取 -->
+    <select id="getSubject" resultMap="subjectResultMap">
+		SELECT
+			su.FY_YEAR,
+			su.PROJECT_NO,
+			su.PROJECT_NAME,
+			su.PROJECT_GOAL,
+			info.DEPT_ID,
+			info.DEPT_NAME,
+			su.PLAN_TIMES,
+			su.PROJECT_TYPE,
+			su.CONTENTS,
+			le.	LEGAL_ID,
+			le.PERCENTAGE,
+			pa.DISP_NAME
+		FROM
+			M_SUBJECT su LEFT JOIN M_SUBJECT_LEGAL le
+			ON su.PROJECT_NO = le.PROJECT_NO
+			LEFT JOIN PARM_MST pa
+			ON le.LEGAL_ID = pa.VALUE
+			LEFT JOIN M_SUBJECT_DEP dep
+			ON su.PROJECT_NO = dep.PROJECT_NO
+			LEFT JOIN M_DEPARTMENT_INFO info
+			ON dep.DEPT_ID = info.DEPT_ID
+		WHERE
+			su.FY_YEAR = #{fyYear}
+		AND
+			su.PROJECT_NO = #{projectNo}
+		AND
+			pa.TYPE1=#{type1}
+	</select>
+	<resultMap id = "subjectResultMap"  type="ProjectInfoDto">
+		<id property="projectNo" column="PROJECT_NO" javaType="string" jdbcType="VARCHAR" />
+		<result property="fyYear" column="FY_YEAR" javaType="string"
+			jdbcType="VARCHAR" />
+		<result property="projectNo" column="PROJECT_NO" javaType="string"
+			jdbcType="VARCHAR" />
+		<result property="projectName" column="PROJECT_NAME" javaType="string"
+			jdbcType="VARCHAR" />
+		<result property="projectGoal" column="PROJECT_GOAL" javaType="string"
+			jdbcType="VARCHAR" />
+		<result property="planTimes" column="PLAN_TIMES" />
+		<result property="projectType" column="PROJECT_TYPE" javaType="int"
+			jdbcType="INTEGER" />
+		<result property="contents" column="CONTENTS" javaType="string"
+			jdbcType="VARCHAR" />
+		<collection property="departmentInfo" ofType="DepartmentInfoEntity">
+			<id property="deptId" column="DEPT_ID" javaType="string"
+				jdbcType="VARCHAR" />
+			<result property="deptId" column="DEPT_ID" javaType="string"
+				jdbcType="VARCHAR" />
+			<result property="deptName" column="DEPT_NAME" javaType="string"
+				jdbcType="VARCHAR" />
+		</collection>
+		<collection property="subjectLegal" ofType="SubjectLegalDto">
+			<id property="legalId" column="LEGAL_ID" javaType="int"
+				jdbcType="INTEGER" />
+			<result property="legalId" column="LEGAL_ID" javaType="int"
+				jdbcType="INTEGER" />
+			<result property="dispName" column="DISP_NAME" javaType="string"
+				jdbcType="VARCHAR" />
+			<result property="percentage" column="PERCENTAGE" />
+		</collection>
+	</resultMap>
+	<!-- 获取课题count -->
+	 <select id="projectCount" resultType="int">
+		SELECT
+			  COUNT(1)
+		FROM
+		   	  M_SUBJECT
+		WHERE
+		 	  PROJECT_NO = #{projectNo}
+		 AND
+		 	  FY_YEAR = #{fyYear}
+	</select>
+	<!-- 修改课题 -->
+	<update id="projectUpdate">
+    	UPDATE
+    		M_SUBJECT
+		SET
+		    PROJECT_NAME=#{projectForm.projectName},
+		    PROJECT_GOAL=#{projectForm.projectGoal},
+		    PLAN_TIMES=#{projectForm.planTimes},
+		    PROJECT_TYPE=#{projectForm.projectType},
+		    CONTENTS=#{projectForm.contents},
+		    UPDATER =#{projectForm.updater},
+		    UPDATE_DT=GETDATE()
+		WHERE
+		     PROJECT_NO = #{projectForm.projectNo}
+		 AND
+		 	  FY_YEAR = #{projectForm.fyYear}
+	</update>
+	<!-- 获取法人 -->
+	<select id="getLegalList" resultType="string">
+		SELECT
+			  DISP_NAME
+		FROM
+		   	  PARM_MST
+		WHERE
+		 	  TYPE1 = #{type1}
+	</select>
+	<!-- 获取课题编号-->
+	<select id="getProjectNo" resultType="string">
+		SELECT
+			  PROJECT_NO
+		FROM
+		   	  M_SUBJECT
+		WHERE
+		 	  FY_YEAR = #{fyYear}
+	</select>
+	<!-- 获取课题分类 -->
+	<select id="getProjectType" resultType="string">
+		SELECT
+			  VALUE
+		FROM
+		   	  PARM_MST
+		WHERE
+		 	  TYPE1 = #{type1}
+	</select>
+	<!--获取法人信息  -->
+	<select id="getSubjectLegal" resultType="SubjectLegalDto">
+		SELECT
+			  VALUE,
+			  DISP_NAME
+		FROM
+		   	  PARM_MST
+		WHERE
+		 	  TYPE1 = #{type1}
+		 AND
+		 	  DISP_NAME IN
+		 	<foreach collection="leals" item="leal" index="index"
+			open="(" close=")" separator=",">
+			 #{leal}
+			</foreach>
+	</select>
+	<!--获取部署Id-->
+	<select id="getDepatId" resultType="string">
+		SELECT
+			  DEPT_ID
+		FROM
+		   	  M_DEPARTMENT_INFO
+	</select>
+	<!-- 新增课题 -->
+	<insert id = "projectAddList" useGeneratedKeys="true" parameterType="ProjectInfoDto">
+		INSERT INTO M_SUBJECT
+		           (PROJECT_NO,
+		            FY_YEAR,
+		            PROJECT_NAME,
+		            PROJECT_GOAL,
+		            PLAN_TIMES,
+		            PROJECT_TYPE,
+		            CONTENTS,
+		            CREATOR,
+		            CREATE_DT)
+		VALUES
+		<foreach collection="projectList"  item="project"  index="idx"  separator="," >
+        	(#{project.projectNo},
+        	#{project.fyYear},
+			#{project.projectName},
+			#{project.projectGoal},
+			#{project.planTimes},
+			#{project.projectType},
+			#{project.contents},
+			#{project.creator},
+			GETDATE())
+    	</foreach>
+    </insert>
+    <!-- 新增部署-->
+    <insert id = "subjectdepAdd" useGeneratedKeys="true"  parameterType="SubjectDepEntity">
+		INSERT INTO M_SUBJECT_DEP
+		           (PROJECT_NO,
+		            FY_YEAR,
+		            DEPT_ID,
+		            CREATOR,
+		            CREATE_DT)
+		VALUES
+		<foreach collection="subjectdepList"  item="subjectdep"  index="idx"  separator="," >
+        	(#{subjectdep.projectNo},
+        	#{subjectdep.fyYear},
+			#{subjectdep.deptId},
+			#{subjectdep.creator},
+			GETDATE())
+    	</foreach>
+    </insert>
+    <!--新增法人 -->
+      <insert id = "subjectLegalAdd" useGeneratedKeys="true" parameterType="SubjectLegalDto">
+		INSERT INTO M_SUBJECT_LEGAL
+		           (PROJECT_NO,
+		            FY_YEAR,
+		            LEGAL_ID,
+		            PERCENTAGE,
+		            CEREATOR,
+		            CREATE_DT)
+		VALUES
+		<foreach collection="subjectLegalList"  item="subjectLegal"  index="idx"  separator="," >
+        	(#{subjectLegal.projectNo},
+        	#{subjectLegal.fyYear},
+			#{subjectLegal.legalId},
+			#{subjectLegal.percentage},
+			#{subjectLegal.creator},
+			GETDATE())
+    	</foreach>
+    </insert>
+    </mapper>

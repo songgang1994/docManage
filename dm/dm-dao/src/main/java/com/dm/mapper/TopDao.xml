@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+    PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+    "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.dm.dao.TopDao">
+	<!--获取工时 -->
+	<select id="getMonthHour" resultMap="monthHourResultMap">
+		SELECT t.PROJECT_NO,
+				 	t.year1,
+					t.month1,
+					t.workingTimes
+		FROM (SELECT year(DATETM) as year1,
+							   month(DATETM) as month1,
+							   PROJECT_NO,
+							   USER_ID,
+							  	SUM(WORKING_TIMES) as workingTimes
+				   FROM T_WORKING_TIMES
+				  GROUP BY year(DATETM),
+								   month(DATETM),
+								   PROJECT_NO,
+								   USER_ID) t
+		WHERE t.USER_ID = #{userId}
+		AND  t.year1= DATEPART(year, GETDATE())
+		AND  t.month1 = DATEPART(month, GETDATE())
+	</select>
+	<resultMap id = "monthHourResultMap"  type="MonthHourTableDto">
+		<result property="year" column="year1" javaType="string"
+			jdbcType="VARCHAR" />
+		<result property="month" column="month1" javaType="string"
+			jdbcType="VARCHAR" />
+		<collection property="monthHour" ofType="PersonMonthHourInfo">
+			<id property="projectNo" column="PROJECT_NO" javaType="string" jdbcType="VARCHAR" />
+			<result property="workingtimes"  column="workingTimes" />
+		</collection>
+	</resultMap>
+	<!-- 获取待处理文件 -->
+	<select id="getWillHandleDocList" resultType="DocWillHandleDto">
+		SELECT
+			TOP (5)
+			det.CREATE_DT,
+			det.DOCUMENT_CODE,
+			det.FILE_CONTENT,
+			app.APPROVE_USER_ID,
+			sys.USER_NAME,
+			det.APPROVAL_STATUS,
+			pa.DISP_NAME
+		FROM
+			DOCUMENT_DETAIL_INFO det LEFT JOIN DOCUMENT_APPROVE_HISTORY app
+			ON det.DOCUMENT_CODE = app.DOCUMENT_CODE
+			LEFT JOIN SYS_USER sys
+			ON app.APPROVE_USER_ID = sys.USER_ID
+			LEFT JOIN PARM_MST pa
+			ON det.APPROVAL_STATUS = pa.VALUE
+		WHERE
+			det.DIRECTOR = #{userId}
+		AND
+			det.APPROVAL_STATUS <![CDATA[ <> ]]> '3'
+		AND
+			pa.TYPE1 = 'DOCUMENT_STATUS'
+		ORDER BY
+		    det.CREATE_DT
+	</select>
+	<!-- 获取待审核文件 -->
+	<select id="getWillApproveDocList" resultType="DocWillHandleDto">
+		SELECT
+			TOP (5)
+			det.UPDATE_DT,
+			det.DOCUMENT_CODE,
+			det.FILE_CONTENT,
+			sys.USER_NAME,
+			det.APPROVAL_STATUS,
+			pa.DISP_NAME
+		FROM
+			DOCUMENT_DETAIL_INFO det LEFT JOIN SYS_USER sys
+			ON det.DIRECTOR = sys.USER_ID
+			LEFT JOIN PARM_MST pa
+			ON det.APPROVAL_STATUS = pa.VALUE
+		WHERE
+			det.APPROVAL_DEPT_ID IN
+			<foreach collection="depts" item="dept" index="index"
+			open="(" close=")" separator=",">
+			 #{dept.deptId}
+			</foreach>
+		AND
+			det.APPROVAL_STATUS = '2'
+		AND
+			pa.TYPE1 = 'DOCUMENT_STATUS'
+		ORDER BY
+			det.UPDATE_DT
+	</select>
+	<!-- 获取我的已预约设备 -->
+	<select id="getDeviceReserveList" resultType="DeviceReserveInfoDto">
+		SELECT TOP (5)
+					t.*,
+					m.DEVICE_NAME
+		FROM
+			T_DEVICE_RESERVE_INFO t INNER JOIN M_DEVICE_INFO m
+			ON t.DEVICE_NO = m.DEVICE_NO
+		WHERE
+			t.USER_ID = #{userId}
+		AND
+			GETDATE() BETWEEN t.START_DT AND t.END_DT
+		ORDER BY
+			t.START_DT
+	</select>
+</mapper>

@@ -1,0 +1,212 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+    PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+    "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.dm.dao.WorkingTimesDao">
+
+	<!-- 根据部门id获取所有成员 -->
+	<sql id="getUserIdByDeptId">
+		SELECT su.USER_ID FROM SYS_USER su
+		LEFT JOIN SYS_USER_DEPT sud ON sud.USER_ID =  su.USER_ID
+	</sql>
+
+	<!-- 获取查询人员信息 -->
+	<resultMap id="getStaffInfoMap" type="StaffInfoDto">
+        <result column="USER_NAME" property="userName"/>
+      	<result column="USER_ID" property="userId"/>
+        <collection property="deptlist" ofType="DepartmentInfoEntity">
+			<result column="DEPT_ID" property="deptId"/>
+      	<result column="DEPT_NAME" property="deptName"/>
+        </collection>
+    </resultMap>
+	<select id="getStaffInfo" resultMap="getStaffInfoMap" >
+		SELECT
+			USER_NAME,sud.USER_ID,sud.DEPT_ID,DEPT_NAME
+		FROM
+			SYS_USER su
+		LEFT JOIN SYS_USER_DEPT sud ON su.USER_ID = sud.USER_ID
+		LEFT JOIN M_DEPARTMENT_INFO mdi ON sud.DEPT_ID = mdi.DEPT_ID
+		WHERE sud.USER_ID = #{userId} AND sud.DEPT_ID in (
+		<foreach collection="deptIds" item="item" index="index" separator=",">
+			#{item}
+		</foreach>
+		)
+	</select>
+
+	<!-- 根据日期和人员 删除工时 -->
+	<delete id="delWorkingTimesByDateAndId">
+		DELETE
+		FROM
+			T_WORKING_TIMES
+		WHERE
+			DATETM = CONVERT (
+				VARCHAR (10),
+				#{dateTm},
+				111
+			)
+		AND USER_ID = #{userId}
+	</delete>
+
+	<!-- 根据日期人员课题编号年度删除工时 -->
+	<delete	id ="delWorkingTimesByDateAndIdAndPjnoAndFy">
+
+
+		DELETE
+		FROM
+			T_WORKING_TIMES
+		WHERE
+			DATETM = CONVERT (
+				VARCHAR (10),
+				#{dateTm},
+				111
+			)
+		AND USER_ID = #{userId}
+		AND PROJECT_NO in (
+		<foreach collection="list" item="item" index="index" separator=",">
+		#{item.projectNo}
+		</foreach>
+		)
+
+		AND FY_YEAR  in (
+		<foreach collection="list" item="item" index="index" separator=",">
+		 #{item.fyYear}
+		</foreach>
+		)
+	</delete>
+
+	<!-- 新增工时 -->
+	<insert id="addWorkingTimes">
+		INSERT INTO T_WORKING_TIMES
+		(DATETM,USER_ID,PROJECT_NO,FY_YEAR,WORKING_TIMES,CREATOR,CREATE_DT)
+		VALUES
+		<foreach collection="list" item="item" index="index" separator=",">
+			(CONVERT(VARCHAR (10),#{dateTm},110),#{userId},#{item.projectNo},#{item.fyYear},#{item.workingTimes},#{userId},GETDATE())
+		</foreach>
+	</insert>
+
+	<!-- 根据用户id 获取所属部门信息 -->
+	<select id="getDepartByUserId" resultType="DepartmentInfoEntity">
+		SELECT
+			mdi.DEPT_ID,
+			mdi.DEPT_NAME
+		FROM
+			SYS_USER_DEPT sud
+		LEFT JOIN M_DEPARTMENT_INFO mdi ON mdi.DEPT_ID = sud.DEPT_ID
+		LEFT JOIN SYS_USER su ON sud.USER_ID = su.USER_ID
+		WHERE
+			sud.USER_ID = #{userId}
+		AND sud.LEADER_FLG = 1
+	</select>
+
+	<!-- 查看部门成员月度工时 -->
+	 <resultMap id="DateMap" type="MonthlyhourYDto">
+        <result column="userId" property="lineKey"/>
+      	<result column="userName" property="lineVal"/>
+        <collection property="lines" ofType="MonthlyhourXDto">
+			<id column="dateTm" property="columnKey"/>
+                <association property="columns" javaType="MonthlyhourDto">
+                    <result column="workingtimes" property="tableVal"/>
+                </association>
+
+        </collection>
+    </resultMap>
+	<select id="queryMonthlyHour" resultMap="DateMap" >
+	SELECT
+		su.USER_ID AS userId,
+		su.USER_NAME AS userName,
+		SUM(twt.WORKING_TIMES)/2 AS workingtimes,
+		CONVERT(CHAR(10),twt.DATETM,111) AS dateTm
+	FROM
+		T_WORKING_TIMES twt
+	LEFT JOIN SYS_USER su ON twt.USER_ID = su.USER_ID
+	LEFT JOIN SYS_USER_DEPT sud ON twt.USER_ID = sud.USER_ID
+	WHERE  CONVERT(CHAR(7),twt.DATETM,120) = #{fyYear} AND twt.USER_ID IN (
+	<include refid="getUserIdByDeptId"/>
+	WHERE sud.DEPT_ID = #{departId}
+	)
+	GROUP BY su.USER_NAME,su.USER_ID,convert(char(10),twt.DATETM,111)
+	ORDER BY su.USER_NAME ,dateTm
+	</select>
+
+	<!-- 根据年月和人员id 查看个人月度工时 -->
+	<select id="getPersonMonthHour" resultMap="getPersonMonthHourMap">
+		SELECT
+			twt.PROJECT_NO,
+			ms.PROJECT_NAME,
+			twt.DATETM AS dateTm,
+			twt.WORKING_TIMES AS workingtimes,
+			mdi.DEPT_ID,
+			mdi.DEPT_NAME
+		FROM
+			T_WORKING_TIMES twt
+		LEFT JOIN SYS_USER su ON twt.USER_ID = su.USER_ID
+		LEFT JOIN M_SUBJECT ms ON ms.PROJECT_NO = twt.PROJECT_NO
+		LEFT JOIN SYS_USER_DEPT sud ON twt.USER_ID = sud.USER_ID
+		LEFT JOIN M_DEPARTMENT_INFO mdi ON sud.DEPT_ID = mdi.DEPT_ID
+		WHERE CONVERT(CHAR(7),twt.DATETM,120) = #{fyYear} AND twt.USER_ID = #{userId}
+		ORDER BY dateTm
+	</select>
+	<resultMap id="getPersonMonthHourMap" type="PersonMonthHourInfo">
+		<id property="projectNo" column="PROJECT_NO" javaType="string" jdbcType="NVARCHAR"/>
+		<id property="dateTime" column="dateTm" javaType="DATE" jdbcType="DATE"/>
+		<result property="projectName" column="PROJECT_NAME" javaType="string" jdbcType="NVARCHAR"/>
+		<result property="workingtimes" column="workingtimes" javaType="BigDecimal" jdbcType="NUMERIC"/>
+		<collection property="department" ofType="DepartmentInfoEntity">
+			<id property="deptId" column="DEPT_ID" javaType="string" jdbcType="VARCHAR"/>
+			<result property="deptName" column="DEPT_NAME" javaType="string" jdbcType="VARCHAR"/>
+		</collection>
+	</resultMap>
+	<!-- 通过人员id查询工时信息 -->
+	<select id="getWork" resultType="WorkingTimesDto">
+			SELECT
+					t.PROJECT_NO,m.FY_YEAR,t.USER_ID,t.DATETM,t.WORKING_TIMES,m.PROJECT_NAME
+			FROM
+					T_WORKING_TIMES t
+			LEFT JOIN
+					M_SUBJECT m
+			ON
+					m.PROJECT_NO = t.PROJECT_NO AND m.FY_YEAR = t.FY_YEAR
+			WHERE
+					USER_ID=#{userId}
+			AND
+					convert(varchar,DATETM,120) like  #{date}
+	</select>
+
+	<select id="getProjectNoInfo" resultType="WorkingTimesDto">
+			SELECT
+					*
+			FROM
+					T_WORKING_TIMES
+			LEFT JOIN
+					M_SUBJECT
+			ON
+					M_SUBJECT.PROJECT_NO = T_WORKING_TIMES.PROJECT_NO
+			WHERE
+					T_WORKING_TIMES.PROJECT_NO=#{projectNo}
+	</select>
+
+	<!-- 课题一览跳转工时填写 -->
+	<select id="getProjectNoInfoa" resultType="WorkingTimesDto">
+			SELECT
+				M_SUBJECT.*,
+ 				 T_WORKING_TIMES.WORKING_TIMES
+			FROM
+				M_SUBJECT
+			LEFT JOIN T_WORKING_TIMES
+			ON M_SUBJECT.PROJECT_NO = T_WORKING_TIMES.PROJECT_NO
+			AND M_SUBJECT.FY_YEAR = T_WORKING_TIMES.FY_YEAR
+			AND T_WORKING_TIMES.USER_ID = #{userId}
+			AND T_WORKING_TIMES.DATETM = #{dateTm}
+			WHERE
+				M_SUBJECT.PROJECT_NO = #{projectNo}
+			AND M_SUBJECT.FY_YEAR = #{fyYear}
+	</select>
+
+	<!-- 通过userid查询username -->
+	<select id="getUserName" resultType="String">
+		SELECT SYS_USER.USER_NAME
+			from SYS_USER
+			WHERE USER_ID =#{userId}
+	</select>
+
+</mapper>
